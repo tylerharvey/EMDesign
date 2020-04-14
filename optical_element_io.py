@@ -62,7 +62,12 @@ class optical_element:
     float_fmt = Template("{:${colwidth}.${precision}g}")
     
 
-    def __init__(self,filename='',verbose=False):
+    # verbose plots everything
+    # so reads .dat files for the second-order solver
+    # these are almost exactly the same except they have radii of curvature
+    # sections after the mesh that looks like the mesh blocks
+    def __init__(self,filename='',verbose=False,so=True):
+        self.so=so
         self.infile = []
         self.initialize_lists()
         self.verbose = verbose
@@ -80,6 +85,8 @@ class optical_element:
         self.read_intro()
         print(f"Reading file {filename} \nwith title: {self.title}")
         line_num = self.read_mesh()
+        if(self.so):
+            line_num = self.read_curvature(line_num)
         # self.plot_mesh_coarse() if self.verbose else 0
         self.read_other_blocks(line_num)
 
@@ -115,6 +122,23 @@ class optical_element:
         line_num+=1 # skip blank line we just found
         return line_num # save line number of the start of the next block
     
+    def read_curvature(self,line_num):
+        z_curv = [] # radii of curvature of the left and right sides of quads
+        r_curv = [] # radii of curvature of the top and bottom sides of quads
+        line_num+=1 # move past z indices line
+        while(self.infile[line_num].isspace() != True):
+            z_curv.append(np.fromstring(self.infile[line_num],dtype=float,sep=' ')[1:]) # exclude r index
+            line_num+=1
+        self.z_curv = np.array(z_curv)
+        line_num+=1 # skip blank line we just found
+        line_num+=1 # move past z indices line
+        while(self.infile[line_num].isspace() != True):
+            r_curv.append(np.fromstring(self.infile[line_num],dtype=float,sep=' ')[1:]) # exclude r index
+            line_num+=1
+        self.r_curv = np.array(r_curv)
+        line_num+=1 # skip blank line we just found
+        return line_num # save line number of the start of the next block
+    
     # generic read function for magnetic materials, coils, electrodes, etc.
     def read_quad(self,line_num,z_indices,r_indices,quad_property,property_dtype=float):
         while(self.infile[line_num].isspace() != True):
@@ -143,6 +167,9 @@ class optical_element:
         self.write_intro(f,title)
         self.write_coordinates(f,self.z)
         self.write_coordinates(f,self.r)
+        if(self.so):
+           self.write_coordinates(f,self.z_curv)
+           self.write_coordinates(f,self.r_curv)
         self.write_other_blocks(f)
         f.close()
         f = None
