@@ -399,34 +399,26 @@ class weak_mag_lens_pp_region(weak_mag_lens):
     coil currents are specified only at boundaries.
     '''
     
-    ##  to be implemented; the documentation is wildly unclear on this
-    ##  general form is a list of
-    ##  <index> <current value>
+    ## on defining coil currents:
+    #
     ##  from "OPTICS_GUI_2.4" p. 42:
     # The first section specifies the potentials on the left-hand boundary;
     # The second section specifies the potentials on the upper boundary;
     # The third section specifies the potentials on the right-hand boundary.
+    ## from "SOFEM-GUI" p. 20:
+    ## first is top to bottom, second is left to right, third is top to bottom
+    ## so indices on each boundary are strictly of one kind
+    ## e.g. only r indices for the left boundary
+    # On the boundaries, the program interpolates the potential linearly 
+    # between the mesh-points at which the potential values are explicitly
+    # specified."
+    ## confusingly, it seems that the right-hand boundary exists even with a
+    # symmetric solver
     #
-    ## from symmetric example, p. 36: 
-    # 1 -250.    # either the lowest r or z index
-    # 20 -250.   # 20 is clearly the highest r index
-    # 1 -250.    # either the lowest r or z index
-    # 27 0.      # 27 is clearly the highest z index
-    # 1 0.       # either the lowest r or z index
-    # 20 0.      # 20 is clearly the highest r index
-    ## no third section because the right-hand boundary is a mirror plane (?)
-    ## from this example, one might guess that a "section" is three indices:
-    ## say, r_low, then r_high, then z_boundary or z_low, z_high, r_boundary
-    ## the asymmetric example does not follow that pattern
-    ## from asymmetric example, also p. 36:
-    # 1 -250.    # either the lowest r or z index
-    # 21 -250.   # 21 is clearly the highest r index
-    # 1 -250.    # either the lowest r or z index
-    # 29 250.    # 29 is the z index where the pp mag. mat. begins
-    # 40 250.    # 40 is clearly the highest z index
-    # 1 250.     # either the lowest r or z index
-    # 21 250.    # 21 is clearly the highest r index
-    # 
+    # I am guessing that MEBS delineates sections by a decreased index, i.e.
+    # 1  25.0
+    # 20 25.0
+    # 1  0.0    <- MEBS decides this is a new section (?)
 
     def initialize_lists(self):
         self.boundary_coil_indices = [] 
@@ -458,10 +450,17 @@ class weak_mag_lens_pp_region(weak_mag_lens):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,count=2,sep=' '))
             line_num+=1
         lines = np.array(lines)
-        # when properly implemented, these lines would divide "sections" into
-        # separate list entries
-        self.boundary_coil_indices.append(lines[:,0].astype(int))
-        self.boundary_coil_currents.append(lines[:,1])
+        self.boundary_coil_indices = lines[:,0].astype(int)
+        self.boundary_coil_currents = lines[:,1]
+        section_starts = [] # list of numpy indices that denote the start of a section
+        prev_index = 1 # counter
+        for n,index in enumerate(self.boundary_coil_indices):
+            if(index < prev_index):
+                section_starts.append(n)
+            prev_index = index
+        # turn these two numpy arrays into a list containing each section as a numpy array
+        self.boundary_coil_indices = np.split(self.boundary_coil_indices,section_starts)
+        self.boundary_coil_currents = np.split(self.boundary_coil_currents,section_starts)
         return line_num+1 # start of next block
     
     def write_coil(self,f):
@@ -470,7 +469,6 @@ class weak_mag_lens_pp_region(weak_mag_lens):
             for k in range(len(self.boundary_coil_indices[m])):
                 f.write(self.check_len(self.int_fmt.format(self.boundary_coil_indices[m][k])))
                 f.write(self.check_len(self.curr_fmt.format(self.boundary_coil_currents[m][k])))
-                f.write("\n")
         f.write("\n")
 
     def plot_quads(self):
