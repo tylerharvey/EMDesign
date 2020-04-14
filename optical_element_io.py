@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import sys,os,subprocess,shutil
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
@@ -67,12 +68,14 @@ class optical_element:
         self.verbose = verbose
         if(filename):
             self.read(filename)
+            shutil.copyfile(filename,filename+'.bak')
             
     def initialize_lists(self):
         pass
     
     def read(self,filename):
         f = open(filename,'r')
+        self.filename = filename
         self.infile = list(f) # creates a list with one entry per line of f
         self.read_intro()
         print(f"Reading file {filename} \nwith title: {self.title}")
@@ -122,13 +125,20 @@ class optical_element:
             line_num+=1
         return line_num+1 # start of next block
     
-    def write(self,outfilename,title='optical element',coord_precision=6,curr_precision=6,field_precision=6,rel_perm_precision=6):
+    def write(self,outfilename,title=None,coord_precision=6,curr_precision=6,field_precision=6,rel_perm_precision=6):
+        if not title:
+            title = self.title
+        else:
+            self.title = title
+
         self.coord_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=coord_precision)
         self.curr_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=curr_precision)
         self.field_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=field_precision)
         self.rel_perm_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=rel_perm_precision)
         
         f = open(outfilename,'w')
+        self.filename = outfilename
+        self.basename = os.path.splitext(outfilename)[0]
         
         self.write_intro(f,title)
         self.write_coordinates(f,self.z)
@@ -220,6 +230,12 @@ class optical_element:
               raise Exception('Error: zero space between columns. Increase column width and rerun.')
         return string
 
+    def plot_field(self):
+        z,B = np.genfromtxt(self.basename+'.axb',dtype=float,skip_header=7,skip_footer=4,unpack=True)
+        plt.plot(z,B)
+        plt.xlabel('z (mm)')
+        plt.ylabel('B (T)')
+        plt.show()
 
 
 class strong_mag_lens(optical_element):
@@ -331,6 +347,9 @@ class strong_mag_lens(optical_element):
         for l in range(L):
             self.plot_quad(self.coil_z_indices[l],self.coil_r_indices[l],color='r')
 
+    def calc_field(self):
+        subprocess.run(["/home/trh/MEBS/SOFEM/bin/CL/somlenss.exe",self.filename])
+
 
 class weak_mag_lens(strong_mag_lens):
     '''
@@ -366,6 +385,9 @@ class weak_mag_lens(strong_mag_lens):
     
     def write_mag_mat(self,f):
         self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_mu_r,self.rel_perm_fmt)
+
+    def calc_field(self):
+        subprocess.run(["/home/trh/MEBS/SOFEM/bin/CL/somlensc.exe",self.filename])
 
 
 class weak_mag_lens_pp_region(weak_mag_lens):
@@ -453,6 +475,9 @@ class weak_mag_lens_pp_region(weak_mag_lens):
 
     def plot_quads(self):
         self.plot_mag_mat()
+
+    def calc_field(self):
+        subprocess.run(["/home/trh/MEBS/SOFEM/bin/CL/somlensp.exe",self.filename])
 
 
 # example_strong = strong_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlenss1.dat",verbose=True)
