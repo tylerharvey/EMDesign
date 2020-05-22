@@ -1,12 +1,41 @@
 #!/usr/bin/env python3
-import sys,os,subprocess,shutil
+import sys,os,subprocess,shutil,datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
+from contextlib import contextmanager
+# sys.path.append('/home/trh/MEBS/OPTICS/bin/')
+# sys.path.append('/home/trh/MEBS/SOFEM/bin/CL/')
+# sys.path.append('/home/trh/MEBS/HERM1/bin/CL/')
+# sys.path.append('/home/trh/MEBS/MIRROR/bin/CL/')
 
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
+
+### note: MEBS binaries are extremely picky about file paths
+### in order for this code to successfully call them, the following
+### folders must be added to the Windows path:
+### < ... >\MEBS\OPTICS\bin\
+### < ... >\MEBS\SOFEM\bin\CL\
+### < ... >\MEBS\MIRROR\bin\MIRROR\
+### < ... >\MEBS\HERM1\bin\CL\
+### to edit the Windows path, right click on This PC and then select Properties
+### On the left, click Avdanced System Settings, and Environment Variables
+### at the bottom. Choose PATH in the User variables list and then click Edit 
+### 
+### the working directory must also be the one in which the MEBS .dat and .axb
+### files are located, so os.chdir is used after read-in satisfy this.
+
+# safe chdir
+@contextmanager
+def cd(newdir):
+    prevdir = os.getcwd()
+    os.chdir(os.path.expanduser(newdir))
+    try:
+        yield
+    finally:
+        os.chdir(prevdir)
 
 def np_indices(indices,index_set):
     np_index_array = []
@@ -23,7 +52,7 @@ class optical_element:
     title : string
         title printed as the first line of the .dat file
     output : integer
-        integer flag that controls the field data outptuted.
+        integer flag that controls the field data outputted.
         0 outputs data only along the z axis.
         1 outputs data at all FE mesh points.
         2 outputs data at all mesh points and inside magnetic circuits.
@@ -66,7 +95,7 @@ class optical_element:
     # so reads .dat files for the second-order solver
     # these are almost exactly the same except they have radii of curvature
     # sections after the mesh that looks like the mesh blocks
-    def __init__(self,filename='',verbose=False,so=True):
+    def __init__(self,filename='',verbose=False,so=False):
         self.so=so
         self.infile = []
         self.initialize_lists()
@@ -81,6 +110,9 @@ class optical_element:
     def read(self,filename):
         f = open(filename,'r')
         self.filename = filename
+        self.basename_noext = os.path.splitext(os.path.basename(filename))[0]
+        self.filename_noext = os.path.splitext(filename)[0]
+        self.dirname = os.path.dirname(filename)
         self.infile = list(f) # creates a list with one entry per line of f
         self.read_intro()
         print(f"Reading file {filename} \nwith title: {self.title}")
@@ -120,6 +152,9 @@ class optical_element:
         if(np.array_equal(r_indices,r_indices_2) != True):
             raise Exception("Read error! r indices read in first and second mesh block not identical!")
         line_num+=1 # skip blank line we just found
+        if(self.so == False and (len(self.z_indices) != 5 and len(np.fromstring(self.infile[line_num],dtype=int,sep=' ')) != 5) or (len(self.z_indices) == 5 and np.array_equal(np.fromstring(self.infile[line_num],dtype=int,sep=' '),self.z_indices))):
+            print('Warning! This data file seems to have curvature coordinates. Setting so=True.')
+            self.so = True
         return line_num # save line number of the start of the next block
     
     def read_curvature(self,line_num):
@@ -162,7 +197,10 @@ class optical_element:
         
         f = open(outfilename,'w')
         self.filename = outfilename
-        self.basename = os.path.splitext(outfilename)[0]
+        self.filename_noext = os.path.splitext(outfilename)[0]
+        self.basename_noext = os.path.splitext(os.path.basename(outfilename))[0]
+        self.filename_noext = os.path.splitext(outfilename)[0]
+        self.dirname = os.path.dirname(outfilename)
         
         self.write_intro(f,title)
         self.write_coordinates(f,self.z)
@@ -258,11 +296,26 @@ class optical_element:
         return string
 
     def plot_field(self):
-        z,B = np.genfromtxt(self.basename+'.axb',dtype=float,skip_header=7,skip_footer=4,unpack=True)
-        plt.plot(z,B)
-        plt.xlabel('z (mm)')
-        plt.ylabel('B (T)')
-        plt.show()
+        try:
+            z,B = np.genfromtxt(self.filename_noext+'.axb',dtype=float,skip_header=7,skip_footer=4,unpack=True)
+            plt.plot(z,B)
+            plt.xlabel('z (mm)')
+            plt.ylabel('B (T)')
+            plt.show()
+        except OSError:
+            print('No file with name {} found. Run calc_field first.'.format(self.filename_noext+'.axb'))
+
+    def add_curvature(self):
+        if(hasattr(self,'r_curv')):
+            raise Exception('Curvatures already defined.')
+        self.r_curv = np.zeros_like(self.r)
+        self.z_curv = np.zeros_like(self.z)
+        self.so = True
+
+    def calc_rays(self):
+        with cd(self.dirname):
+            print(subprocess.run(["soray.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
+        
 
 
 class strong_mag_lens(optical_element):
@@ -375,7 +428,15 @@ class strong_mag_lens(optical_element):
             self.plot_quad(self.coil_z_indices[l],self.coil_r_indices[l],color='r')
 
     def calc_field(self):
-        subprocess.run(["/home/trh/MEBS/SOFEM/bin/CL/somlenss.exe",self.filename])
+        with cd(self.dirname):
+            print(subprocess.run(["somlenss.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
+        # now = datetime.datetime.now()
+        # # check if potential file exists and was created in last five minites
+        # if(os.path.exists(self.filename_noext+'.axb') and 
+        #         now - datetime.timedelta(minutes=5) < datetime.datetime.fromtimestamp(os.path.getmtime(self.filename_noext+'.axb')) < now):
+        #     print('Field computation successful.')
+        # else:
+        #     raise Exception('Field computation failed. Run SOFEM GUI on this file for error message.')
 
 
 class weak_mag_lens(strong_mag_lens):
@@ -414,7 +475,8 @@ class weak_mag_lens(strong_mag_lens):
         self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_mu_r,self.rel_perm_fmt)
 
     def calc_field(self):
-        subprocess.run(["/home/trh/MEBS/SOFEM/bin/CL/somlensc.exe",self.filename])
+        with cd(self.dirname):
+            print(subprocess.run(["somlensc.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
 
 
 class weak_mag_lens_pp_region(weak_mag_lens):
@@ -502,7 +564,8 @@ class weak_mag_lens_pp_region(weak_mag_lens):
         self.plot_mag_mat()
 
     def calc_field(self):
-        subprocess.run(["/home/trh/MEBS/SOFEM/bin/CL/somlensp.exe",self.filename])
+        with cd(self.dirname):
+            print(subprocess.run(["somlensp.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
 
 
 # example_strong = strong_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlenss1.dat",verbose=True)
