@@ -4,11 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
-# sys.path.append('/home/trh/MEBS/OPTICS/bin/')
-# sys.path.append('/home/trh/MEBS/SOFEM/bin/CL/')
-# sys.path.append('/home/trh/MEBS/HERM1/bin/CL/')
-# sys.path.append('/home/trh/MEBS/MIRROR/bin/CL/')
-
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -27,7 +22,9 @@ from contextlib import contextmanager
 ### the working directory must also be the one in which the MEBS .dat and .axb
 ### files are located, so os.chdir is used after read-in satisfy this.
 
-# safe chdir
+# safe chdir, found on stackexchange; do not understand it but
+# when used as "with cd():" it returns to the previous directory
+# no matter what
 @contextmanager
 def cd(newdir):
     prevdir = os.getcwd()
@@ -85,10 +82,15 @@ class optical_element:
     # z = np.array([[]])
     
     ## infile = []
-    colwidth = 10 # width of columns in written .dat files
+    imgcondcolwidth = 40
+    colwidth = 12 # width of columns in written .dat files
     sp = " "*colwidth 
     int_fmt = Template("{:${colwidth}d}").substitute(colwidth=colwidth)
     float_fmt = Template("{:${colwidth}.${precision}g}")
+    imgcondprop_fmt = Template("{:<${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth)
+    imgcondtext_fmt = Template("{:>${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth)
+    imgcondint_fmt = Template("{:>${imgcondcolwidth}d}").substitute(imgcondcolwidth=imgcondcolwidth)
+    rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
     
 
     # verbose plots everything
@@ -110,8 +112,10 @@ class optical_element:
     def read(self,filename):
         f = open(filename,'r')
         self.filename = filename
-        self.basename_noext = os.path.splitext(os.path.basename(filename))[0]
-        self.filename_noext = os.path.splitext(filename)[0]
+        self.basename_noext = os.path.splitext(os.path.basename(filename))[0] # name without directories or extension
+        self.basename = os.path.basename(filename) # name without directories
+        self.potname = self.basename_noext+'.axb' # name of potential file
+        self.filename_noext = os.path.splitext(filename)[0] # with directories
         self.dirname = os.path.dirname(filename)
         self.infile = list(f) # creates a list with one entry per line of f
         self.read_intro()
@@ -121,6 +125,8 @@ class optical_element:
             line_num = self.read_curvature(line_num)
         # self.plot_mesh_coarse() if self.verbose else 0
         self.read_other_blocks(line_num)
+        f.close()
+        f = None
 
     def read_intro(self):
         self.title = self.infile[0].strip('\n')
@@ -197,8 +203,9 @@ class optical_element:
         
         f = open(outfilename,'w')
         self.filename = outfilename
-        self.filename_noext = os.path.splitext(outfilename)[0]
         self.basename_noext = os.path.splitext(os.path.basename(outfilename))[0]
+        self.basename = os.path.basename(outfilename)
+        self.potname = self.basename_noext+'.axb'
         self.filename_noext = os.path.splitext(outfilename)[0]
         self.dirname = os.path.dirname(outfilename)
         
@@ -218,7 +225,7 @@ class optical_element:
         f.write(self.check_len(self.int_fmt.format(self.axsym)))
         f.write("\n\n") # one blank line after intro
 
-    def write_coordinates(self,f,coords):
+    def write_coordinates(self,f,coords,rounding=True):
         f.write(self.sp)
         # I use i and j here explicitly for clarity as 
         # this usage is consistent with the MEBS manual I and J
@@ -229,7 +236,8 @@ class optical_element:
         for i in range(len(self.r_indices)):
             f.write(self.check_len(self.int_fmt.format(self.r_indices[i],self.colwidth)))
             for j in range(len(self.z_indices)):
-                f.write(self.check_len(self.coord_fmt.format(coords[i,j])))
+                coords_to_print = round(coords[i,j],self.colwidth-5) if rounding else coords[i,j]
+                f.write(self.check_len(self.coord_fmt.format(coords_to_print)))
             f.write("\n")
         f.write("\n")
         
@@ -250,7 +258,7 @@ class optical_element:
     def write_other_blocks(self,f):
         pass
         
-    def plot_mesh_coarse(self,quads_on=False,adj=6):
+    def plot_mesh_coarse(self,quads_on=False,adj=6,zlim=None,rlim=None):
         # plt.scatter(self.z.flatten(),self.r.flatten(),)
         for n in range(self.z.shape[0]):
             # add r index label
@@ -265,6 +273,8 @@ class optical_element:
         self.plot_quads() if quads_on else 0
         plt.xlabel("z (mm)")
         plt.ylabel("r (mm)")
+        plt.xlim(zlim)
+        plt.ylim(rlim)
         # plt.title("Mesh (coarse)")
         plt.gca().set_aspect('equal')
         plt.show()
@@ -272,7 +282,7 @@ class optical_element:
     def plot_quads(self):
         pass
     
-    def plot_quad(self,z_indices,r_indices,color='k'):
+    def retrieve_segments(self,z_indices,r_indices):
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
         seg_np_indices = []
@@ -280,8 +290,53 @@ class optical_element:
         seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
         seg_np_indices.append((np.repeat(np_r_indices.max(),len(np_z_indices)),np_z_indices))
         seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.min(),len(np_r_indices))))
-        for seg in seg_np_indices:
+        return seg_np_indices
+    
+    # make a list of the numpy indices for points on the boundary of a given
+    # type of quad. quad type is specificed by the inputs.
+    # e.g. z_indices = self.mag_mat_z_indices or self.coil_z_indices for 
+    # a magnetic lens.
+    # with argument return_ind_array=True, reformats list into index arrays
+    # to be called as self.r[unique_points]
+    def retrieve_edge_points(self,z_indices,r_indices,return_ind_array=False):
+        # points holds tuples of np indices for all points on the boundary
+        points = []
+        for n in range(len(r_indices)):
+            for seg in self.retrieve_segments(z_indices[n],r_indices[n]):
+                for m in range(len(seg[0])):
+                     points.append((seg[0][m],seg[1][m])) 
+        unique_points = list(dict.fromkeys(points)) # removes duplicate entries
+        if(return_ind_array):
+            tmp_array = np.array(unique_points)
+            return (tmp_array[:,0],tmp_array[:,1])
+        else:
+            return unique_points
+
+    # same as above, but for a single quad
+    def retrieve_single_quad_edge_points(self,quad_z_indices,quad_r_indices,return_ind_array=False):
+        points = []
+        for seg in self.retrieve_segments(quad_z_indices,quad_r_indices):
+            for m in range(len(seg[0])):
+                points.append((seg[0][m],seg[1][m]))
+        unique_points = list(dict.fromkeys(points)) # removes duplicate entries
+        if(return_ind_array):
+            tmp_array = np.array(unique_points)
+            return (tmp_array[:,0],tmp_array[:,1])
+        else:
+            return unique_points
+
+    def plot_quad(self,z_indices,r_indices,color='k'):
+        for seg in self.retrieve_segments(z_indices,r_indices):
             plt.plot(self.z[seg],self.r[seg],color=color)
+        # np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
+        # np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
+        # seg_np_indices = []
+        # seg_np_indices.append((np.repeat(np_r_indices.min(),len(np_z_indices)),np_z_indices))
+        # seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
+        # seg_np_indices.append((np.repeat(np_r_indices.max(),len(np_z_indices)),np_z_indices))
+        # seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.min(),len(np_r_indices))))
+        # for seg in seg_np_indices:
+        #     plt.plot(self.z[seg],self.r[seg],color=color)
     
     def check_len(self,string):
         if(len(string.strip()) >= self.colwidth):
@@ -297,13 +352,14 @@ class optical_element:
 
     def plot_field(self):
         try:
-            z,B = np.genfromtxt(self.filename_noext+'.axb',dtype=float,skip_header=7,skip_footer=4,unpack=True)
-            plt.plot(z,B)
-            plt.xlabel('z (mm)')
-            plt.ylabel('B (T)')
-            plt.show()
+            with cd(self.dirname):
+                z,B = np.genfromtxt(self.potname,dtype=float,skip_header=7,skip_footer=4,unpack=True)
+                plt.plot(z,B)
+                plt.xlabel('z (mm)')
+                plt.ylabel('B (T)')
+                plt.show()
         except OSError:
-            print('No file with name {} found. Run calc_field first.'.format(self.filename_noext+'.axb'))
+            print('No file with name {} found. Run calc_field first.'.format(self.potname))
 
     def add_curvature(self):
         if(hasattr(self,'r_curv')):
@@ -315,7 +371,66 @@ class optical_element:
     def calc_rays(self):
         with cd(self.dirname):
             print(subprocess.run(["soray.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
-        
+
+    def write_opt_img_cond_file(self,imgcondfilename,n_intervals=200,energy=200000,energy_width=1,aperture_angle=30,obj_pos=0,img_pos=6,n_intermediate_images=0,lens_pos=0,lens_strength=1,lens_scale=1,precision=6,auto_focus=1):
+        self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
+        self.lensfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=precision)
+        self.imgcondfilename = imgcondfilename
+        self.imgcondbasename_noext = os.path.splitext(os.path.basename(imgcondfilename))[0] 
+        cf = open(self.imgcondfilename,'w') 
+        self.img_cond_title = self.title+' Imaging Conditions for OPTICS+ABER5'
+        on = 'on'
+        off = 'off'
+        cf.write(f"Title     {self.img_cond_title:>70}\n\n")
+        cf.write(self.imgcondprop_fmt.format("Fifth Order Aberration")+self.imgcondtext_fmt.format(on)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Slope Aberration")+self.imgcondtext_fmt.format(on)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Output Paraxial Rays")+self.imgcondtext_fmt.format(on)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Terminal Display")+self.imgcondtext_fmt.format(on)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Lens Properties")+self.imgcondtext_fmt.format(on)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Number of Intervals")+self.imgcondint_fmt.format(n_intervals)+'\n')
+        # cf.write(self.imgcondprop_fmt.format("Number of Intermediate Images")+self.imgcondint_fmt.format(n_intermediate_images)+'\n')
+        cf.write('\n')
+        cf.write(self.imgcondprop_fmt.format("Object Plane")+self.imgcondfloat_fmt.format(obj_pos)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Image Plane")+self.imgcondfloat_fmt.format(img_pos)+'\n')
+        cf.write('\n')
+        cf.write(self.imgcondprop_fmt.format("Aperture Angle")+self.imgcondfloat_fmt.format(aperture_angle)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Energy Spread")+self.imgcondfloat_fmt.format(energy_width)+'\n')
+        cf.write(self.imgcondprop_fmt.format("Beam Voltage")+self.imgcondfloat_fmt.format(energy)+'\n')
+        cf.write('\n')
+        cf.write('Magnetic Lens\n')
+        cf.write('\n')
+        cf.write(self.lensfloat_fmt.format(lens_pos)+self.lensfloat_fmt.format(lens_strength))
+        cf.write(self.lensfloat_fmt.format(lens_scale)+self.int_fmt.format(auto_focus)+"{:>40s}".format(self.potname)+'\n')
+        cf.write('\n')
+        cf.close()
+        cf = None
+
+    # this is bound to break when the .res file changes 
+    # in ways I haven't foreseen. fix as needed.
+    def read_optical_properties(self):
+        pf = open(os.path.join(self.dirname,self.imgcondbasename_noext+'.res'),'r')
+        properties_lines = pf.readlines()
+        # see end of this file for snippets of the .res file 
+        # that are relevant to this parameter extraction
+        for i,line in enumerate(properties_lines):
+            if 'FIRST-ORDER PROPERTIES' in line:
+                linenum_mag = i+10
+                linenum_rot = i+11
+            if 'Magnetic Lens      No.  1' in line: # change if more lenses
+                linenum_f = i+9
+                linenum_f_real = i+5
+            if 'THIRD-ORDER ABERRATION COEFFICIENTS   (in S.I. units)' in line:
+                linenum_c3 = i+9
+            if ' ***** CHROMATIC AB *****' in line:
+                linenum_cc = i+3
+        self.mag = float(properties_lines[linenum_mag].split()[3])
+        self.rot = float(properties_lines[linenum_rot].split()[5]) # deg
+        self.f = float(properties_lines[linenum_f].split()[8]) # mm 
+        self.f_real = float(properties_lines[linenum_f_real].split()[8]) # mm
+        self.c3 = float(properties_lines[linenum_c3].split()[2])*1e3 # m to mm
+        self.cc = float(properties_lines[linenum_cc].split()[1])*1e3 # m to mm
+        pf.close()
+        pf = None
 
 
 class strong_mag_lens(optical_element):
@@ -429,7 +544,9 @@ class strong_mag_lens(optical_element):
 
     def calc_field(self):
         with cd(self.dirname):
-            print(subprocess.run(["somlenss.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
+            outputmode = subprocess.PIPE if self.verbose else None
+            output = subprocess.run(["somlenss.exe",self.basename_noext],stdout=outputmode).stdout
+            print(output.decode('utf-8')) if self.verbose else None
         # now = datetime.datetime.now()
         # # check if potential file exists and was created in last five minites
         # if(os.path.exists(self.filename_noext+'.axb') and 
@@ -577,3 +694,48 @@ class weak_mag_lens_pp_region(weak_mag_lens):
 # example_pp = weak_mag_lens_pp_region("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlensp1.dat",verbose=True)
 # example_pp.write("/home/trh/data/test_weak_pp.dat","a test")
 # 
+
+# snippets for each property, with example line numbers on end, for reference
+# --- denotes omitted lines
+'''
+                         FIRST-ORDER PROPERTIES                           # 78
+
+
+ FOCUSING PROPERTIES:
+
+      MAGNETIC LENS No. 1       EXCITATION  (Ampturns)   =  19200.0000
+
+
+
+      ANGULAR MAGNIFICATION ..........................   = -7.8393e-01
+      MAGNIFICATION ..................................   = -1.2756e+00
+      ROTATION ANGLE ....................    (degrees)   =  1.7330e+02
+---
+Region (from    0.000 mm to    6.134 mm), including following lens(es):   
+     Magnetic Lens      No.  1                                            # 101
+
+
+    REAL PRINCIPAL PLANE       (Object Side) ZPreal (mm) =     6.6208
+    REAL FOCAL PLANE           (Object Side) ZFreal (mm) =     3.4439
+    FOCAL LENGTH (REAL)        (Object Side)  Freal (mm) =     3.1769
+
+    ASYMPTOTIC PRINCIPAL PLANE (Object Side) ZPasym (mm) =    -4.9551
+    ASYMPTOTIC FOCAL PLANE     (Object Side) ZFasym (mm) =   -12.5992
+    FOCAL LENGTH (ASYMPTOTIC)  (Object Side)  Fasym (mm) =     7.6441
+---
+                 THIRD-ORDER ABERRATION COEFFICIENTS   (in S.I. units)    # 400
+
+
+
+                                ISOTROPIC      ANISOTROPIC     FUNCTIONAL
+                                   PART            PART        DEPENDENCE
+
+------------------------------------------------------------------------------
+
+ SPHERICAL ABERRATION          5.89490e-03     0.00000e+00      A  A  Ac  # 409
+ ---
+ ***** CHROMATIC AB *****                                                 # 438
+
+
+ AXIAL                        -4.09665e-03     0.00000e+00      A  DV/V   # 441
+'''
