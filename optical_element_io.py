@@ -288,8 +288,9 @@ class optical_element:
         seg_np_indices = []
         seg_np_indices.append((np.repeat(np_r_indices.min(),len(np_z_indices)),np_z_indices))
         seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
-        seg_np_indices.append((np.repeat(np_r_indices.max(),len(np_z_indices)),np_z_indices))
-        seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.min(),len(np_r_indices))))
+        # reverse these two so that it's ccw order
+        seg_np_indices.append((np.repeat(np_r_indices.max(),len(np_z_indices)),np_z_indices[::-1]))
+        seg_np_indices.append((np_r_indices[::-1],np.repeat(np_z_indices.min(),len(np_r_indices))))
         return seg_np_indices
     
     # make a list of the numpy indices for points on the boundary of a given
