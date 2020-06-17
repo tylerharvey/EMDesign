@@ -40,8 +40,14 @@ def np_indices(indices,index_set):
         np_index_array.append(np.nonzero(indices == index)[0][0]) # should find way to parallelize with nonzero
     return np.array(np_index_array)
 
+# takes a list of np indices np_list = [(1,0),(2,5),...]
+# and casts to a format that can be used for numpy indexing
+# i.e. array[index_array_from_list(index_list)]
+def index_array_from_list(index_list):
+    tmp_array = np.array(index_list)
+    return (tmp_array[:,0],tmp_array[:,1])
 
-class optical_element:
+class OpticalElement:
     '''
     class for a wide range of optical elements. 
     specific elements are implemented as subclasses. 
@@ -307,11 +313,7 @@ class optical_element:
                 for m in range(len(seg[0])):
                      points.append((seg[0][m],seg[1][m])) 
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
-        if(return_ind_array):
-            tmp_array = np.array(unique_points)
-            return (tmp_array[:,0],tmp_array[:,1])
-        else:
-            return unique_points
+        return index_array_from_list(unique_points) if return_ind_array else unique_points
 
     # same as above, but for a single quad
     def retrieve_single_quad_edge_points(self,quad_z_indices,quad_r_indices,return_ind_array=False):
@@ -320,11 +322,7 @@ class optical_element:
             for m in range(len(seg[0])):
                 points.append((seg[0][m],seg[1][m]))
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
-        if(return_ind_array):
-            tmp_array = np.array(unique_points)
-            return (tmp_array[:,0],tmp_array[:,1])
-        else:
-            return unique_points
+        return index_array_from_list(unique_points) if return_ind_array else unique_points
 
     def plot_quad(self,z_indices,r_indices,color='k'):
         for seg in self.retrieve_segments(z_indices,r_indices):
@@ -434,7 +432,7 @@ class optical_element:
         pf = None
 
 
-class strong_mag_lens(optical_element):
+class StrongMagLens(OpticalElement):
     '''
     class for reading and writing MEBS magnetic lens files that use hysteresis
     curves (H-B curves, in fact here without any hysteresis) for magnetic 
@@ -557,7 +555,7 @@ class strong_mag_lens(optical_element):
         #     raise Exception('Field computation failed. Run SOFEM GUI on this file for error message.')
 
 
-class weak_mag_lens(strong_mag_lens):
+class WeakMagLens(StrongMagLens):
     '''
     class for reading and writing MEBS magnetic lens files that use a constant
     relative magnetic permeability to represent magnetic materials and uses
@@ -597,7 +595,7 @@ class weak_mag_lens(strong_mag_lens):
             print(subprocess.run(["somlensc.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
 
 
-class weak_mag_lens_pp_region(weak_mag_lens):
+class WeakMagLens_PP_Region(WeakMagLens):
     '''
     class for reading and writing MEBS magnetic lens files that only consider 
     the polepiece region and use a scalar magnetic potential to solve for
