@@ -44,6 +44,8 @@ def np_indices(indices,index_set):
 # and casts to a format that can be used for numpy indexing
 # i.e. array[index_array_from_list(index_list)]
 def index_array_from_list(index_list):
+    if(len(index_list) == 0 or index_list == ([],[])):
+        return [],[]
     tmp_array = np.array(index_list)
     return (tmp_array[:,0],tmp_array[:,1])
 
