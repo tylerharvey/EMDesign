@@ -11,12 +11,33 @@ def calc_properties_mirror(oe,nterms=50):
     oe.fitname = oe.basename_noext+'.fit'
     with cd(oe.dirname):
         outputmode = subprocess.PIPE if oe.verbose else None
-        output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,nterms,n,n],stdout=outputmode).stdout
-        print(output.decode('utf-8')) if oe.verbose else 0
+        try:
+            output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,nterms,n,n],stdout=outputmode,timeout=oe.timeout).stdout
+            print(output.decode('utf-8')) if oe.verbose else 0
+        except TimeoutExpired:
+            print('Optical properties calculation failed. Rerunning.')
+            calc_properties_mirror(oe,nterms)
 
 
 def calc_properties_optics(oe):
+    '''
+    function for calculating optical properties of electric or magnetic lenses
+    with OPTICS ABER5. 
+
+    oe : OpticalElement object for which to calculate optical properties.
+    '''
     with cd(oe.dirname):
         outputmode = subprocess.PIPE if oe.verbose else None
-        output = subprocess.run(['OPTICS.exe','ABER',oe.imgcondbasename_noext],stdout=outputmode).stdout
-        print(output.decode('utf-8')) if oe.verbose else 0
+        if(os.path.exists(os.imgcondfilename) != True):
+            print('No optical imaging conditions file found. Run OpticalElement.write_opt_img_cond_file() first.')
+            raise FileNotFoundError
+        try:
+            output = subprocess.run(['OPTICS.exe','ABER',oe.imgcondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
+            print(output.decode('utf-8')) if oe.verbose else 0
+        except TimeoutExpired:
+            print('Optical properties calculation failed. Rerunning.')
+            calc_properties_optics(oe)
+        except AttributeError:
+            print('OpticalElement.imagecondbasename_noext not set. Run '
+                  'OpticalElement.write_opt_img_cond_file() first.') 
+            raise AttributeError

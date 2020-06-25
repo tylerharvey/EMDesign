@@ -53,7 +53,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts)
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None):
+def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='TNC',manual_bounds=False,options={'eps':0.5,'stepmx':5,'minfev':1,'disp':True}):
     oe.verbose=False
     quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
@@ -63,7 +63,14 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
     initial_shape = np.concatenate((oe.z[edge_points],oe.r[edge_points],oe.r[mirrored_edge_points]))
     bounds = n_edge_pts*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
-    result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts),bounds=bounds,method='TNC',options={'eps':0.5,'stepmx':5,'minfev':1,'disp':True})
+    if(method=='Nelder-Mead' and options.get('initial_simplex') == None):
+        print('Generating initial simplex.')
+        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds))
+        print('Finished initial simplex generation.')
+    if(manual_bounds):
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,True,np.array(bounds)),method=method,options=options)
+    else:
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts),bounds=bounds,method=method,options=options)
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,n_edge_pts)
@@ -125,6 +132,35 @@ def define_edges(oe,z_indices_list,r_indices_list,remove_duplicates_and_mirrored
         quads[-1].make_index_arrays()
     return quads,all_edge_points_list,all_mirrored_edge_points_list
 
+def generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=None,scale=5):
+    rng = np.random.default_rng()
+    N = len(initial_shape)
+    simplex = np.zeros((N+1,N),dtype=float)
+    for i in range(N+1):
+        simplex[i] = rng.normal(initial_shape,scale,N)
+        # keep trying until simplex point is valid
+        # inefficient but simple
+        while(change_n_quads_and_check(simplex[i],oe,quads,other_quads,n_edge_pts,enforce_bounds,bounds)):
+            simplex[i] = rng.normal(initial_shape,scale,N)
+    # save result
+    np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext),simplex)
+    # return shape to initial shape
+    change_n_quads_and_check(initial_shape,oe,quads,other_quads,n_edge_pts)
+    return simplex
+
+def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None):
+    z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
+    for quad in quads:
+        oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
+        oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
+        oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
+    if(enforce_bounds):
+        if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
+            return True
+    if(do_quads_intersect_anything(oe,quads,other_quads)):
+        return True
+    return False
+
 def find_mirrored_edge_points(oe,edge_points_list):
     mirrored_edge_points_list = [point for point in edge_points_list if oe.z[point] == 0]
     edge_points_list = [point for point in edge_points_list if oe.z[point] != 0]
@@ -140,13 +176,18 @@ def change_imgplane_and_calculate(imgplane,oe):
     print(f"f: {oe.f}, C3: {oe.c3}")
     return np.abs(oe.c3)
 
-def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts):
-    z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
-    for quad in quads:
-        oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
-        oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
-        oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
-    if(do_quads_intersect_anything(oe,quads,other_quads)):
+def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None):
+    # z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
+    # for quad in quads:
+    #     oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
+    #     oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
+    #     oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
+    # if(enforce_bounds):
+    #     if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
+    #         return 10000
+    # if(do_quads_intersect_anything(oe,quads,other_quads)):
+    #     return 10000
+    if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None)):
         return 10000
     return calculate_norm_c3(oe)
 

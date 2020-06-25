@@ -99,6 +99,7 @@ class OpticalElement:
     imgcondtext_fmt = Template("{:>${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth)
     imgcondint_fmt = Template("{:>${imgcondcolwidth}d}").substitute(imgcondcolwidth=imgcondcolwidth)
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
+    timeout = 10*60 # 6 minutes
     
 
     # verbose plots everything
@@ -371,7 +372,11 @@ class OpticalElement:
 
     def calc_rays(self):
         with cd(self.dirname):
-            print(subprocess.run(["soray.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
+            try:
+                print(subprocess.run(["soray.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
+            except TimeoutExpired:
+                print('Ray tracing timed out. Rerunnning.')
+                self.calc_rays()
 
     def write_opt_img_cond_file(self,imgcondfilename,n_intervals=200,energy=200000,energy_width=1,aperture_angle=30,obj_pos=0,img_pos=6,n_intermediate_images=0,lens_pos=0,lens_strength=1,lens_scale=1,precision=6,auto_focus=1):
         self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
@@ -546,8 +551,12 @@ class StrongMagLens(OpticalElement):
     def calc_field(self):
         with cd(self.dirname):
             outputmode = subprocess.PIPE if self.verbose else None
-            output = subprocess.run(["somlenss.exe",self.basename_noext],stdout=outputmode).stdout
-            print(output.decode('utf-8')) if self.verbose else None
+            try:
+                output = subprocess.run(["somlenss.exe",self.basename_noext],stdout=outputmode,timeout=self.timeout).stdout
+                print(output.decode('utf-8')) if self.verbose else None
+            except TimeoutExpired:
+                print('Field calculation timed out. Rerunning.')
+                self.calc_field()
         # now = datetime.datetime.now()
         # # check if potential file exists and was created in last five minites
         # if(os.path.exists(self.filename_noext+'.axb') and 
@@ -594,7 +603,11 @@ class WeakMagLens(StrongMagLens):
 
     def calc_field(self):
         with cd(self.dirname):
-            print(subprocess.run(["somlensc.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
+            try:
+                print(subprocess.run(["somlensc.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
+            except TimeoutExpired:
+                print('Field calculation timed out. Rerunning.')
+                self.calc_field()
 
 
 class WeakMagLens_PP_Region(WeakMagLens):
@@ -683,7 +696,11 @@ class WeakMagLens_PP_Region(WeakMagLens):
 
     def calc_field(self):
         with cd(self.dirname):
-            print(subprocess.run(["somlensp.exe",self.basename_noext],stdout=subprocess.PIPE).stdout.decode('utf-8'))
+            try:
+                print(subprocess.run(["somlensp.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
+            except TimeoutExpired:
+                print('Field calculation timed out. Rerunning.')
+                self.calc_field()
 
 
 # example_strong = strong_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlenss1.dat",verbose=True)
