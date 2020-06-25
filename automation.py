@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+'''
+User methods:
+    optimize_many_shapes
+    OptimizeShapes (built as a class for obscure reasons)
+'''
 import sys,os,subprocess,shutil,datetime
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +14,16 @@ from calculate_optical_properties import calc_properties_optics
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 
-def calculate_norm_c3(oe):
+def calculate_c3(oe):
+    '''
+    Workhorse function for automation. Writes optical element file, then 
+    calculates field, then calculates optical properties, and then reads them.
+
+    Parameters:
+        oe : OpticalElement object
+            optical element on which to calculate spherical aberration.
+    '''
+    
     oe.write(oe.filename)
     oe.calc_field()
     calc_properties_optics(oe)
@@ -22,10 +36,18 @@ def calculate_norm_c3(oe):
 
 def change_current_and_calculate(current,oe):
     oe.coil_curr = current
-    return calculate_norm_c3(oe)
+    return calculate_c3(oe)
 
 # for a single coil such that oe.coil_curr = [current]
 def optimize_single_current(oe):
+    '''
+    In principle, finds current of one coil necessary to minimize spherical
+    aberration. In practice, has multiple problems:
+    -MEBS throws popups when not running with a defined image plane
+    -higher current will probably always be better
+
+    Not currently useful but could be made so with changes.
+    '''
     oe.verbose = False # limits the noise
     result = minimize(change_current_and_calculate,oe.coil_curr,args=(oe),method='Nelder-Mead')
     oe.coil_curr = result.x
@@ -33,8 +55,40 @@ def optimize_single_current(oe):
     print('Optimization complete')
 
 class OptimizeShapes:
+    '''
+    This class is necessary to use skopt minimizers as they don't allow 
+    additional arguments to be passed to the objective function like scipy.
+    Also, skopt uses a list and cannot use a numpy array for the parameters
+    to optimize.
+
+    Copy of optimize_many_shapes with slight tweaks.
+    '''
     minimize_switch = {'gbrt': gbrt_minimize,'gp': gp_minimize, 'forest': forest_minimize, 'dummy': dummy_minimize}
+
     def __init__(self,oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='gbrt',c3=None,n_random_starts=10,n_calls=100):
+        '''
+        Parameters:
+            oe: OpticalElement object
+                optical element to optimize
+            r_indices_list : list
+            z_indices_list : list
+                list of lists of two MEBS r indices and two MEBS z indices that 
+                defines quads to optimize
+            other_z_indices_list : list
+            other_r_indices_list : list
+                list of lists of indices for all other quads in optical element.
+                used to avoid intersecting lines.
+                default empty list
+            z_min : float
+            z_max : float
+            r_min : float
+            r_max : float
+                bounds
+                default None
+            method : str
+                name of skopt method to use ('gbrt','forest','dummy','gp')
+                default 'gbrt'
+        '''
         oe.verbose=False
         self.oe = oe
         self.quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
@@ -53,7 +107,50 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts)
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='TNC',manual_bounds=False,options={'eps':0.5,'stepmx':5,'minfev':1,'disp':True}):
+def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None},simplex_scale=5):
+    '''
+    Automated optimization of the shape of one or more quads with 
+    scipy.optimize.minimize.
+
+    Parameters:
+        oe: OpticalElement object
+            optical element to optimize
+        r_indices_list : list
+        z_indices_list : list
+            list of lists of two MEBS r indices and two MEBS z indices that 
+            defines quads to optimize
+        other_z_indices_list : list
+        other_r_indices_list : list
+            list of lists of indices for all other quads in optical element.
+            used to avoid intersecting lines.
+            default empty list
+        z_min : float
+        z_max : float
+        r_min : float
+        r_max : float
+            bounds
+            default None
+        manual_bounds : boolean
+            determines whether bounds will be enforced manually in objective
+            function. set to False for methods like TNC that include bounds.
+            set to True for Nelder-Mead, Powell, etc.
+            intersections are always manually blocked.
+            default True
+        method : str
+            name of method to use
+            default 'Nelder-Mead'
+        options : dict
+            options for the specific solver.
+            for TNC, a good set is {'eps':0.5,'stepmx':5,'minfev':1,'disp':True}
+            default {'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,
+                     'initial_simplex':None} for Nelder-Mead
+        simplex_scale : float
+            size (in mm) for normal distribution of simplex points around
+            initial shape. only used with Nelder-Mead. A larger scale results
+            in a longer search that is more likely to find a qualitatively
+            different shape.
+            default 5
+    '''
     oe.verbose=False
     quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
@@ -65,7 +162,7 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     bounds = n_edge_pts*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
     if(method=='Nelder-Mead' and options.get('initial_simplex') == None):
         print('Generating initial simplex.')
-        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds))
+        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),scale=scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
         result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,True,np.array(bounds)),method=method,options=options)
@@ -76,6 +173,11 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,n_edge_pts)
 
 def optimize_image_plane(oe,min_dist=3,image_plane=6):
+    '''
+    In principle, could be used to find the optimal image plane to minimize
+    spherical aberration. In practice, that is always zero distance from the
+    object plane, so needs to be rewritten to be useful.
+    '''
     oe.verbose = False
     initial_plane = [image_plane] # mm
     bounds = [(min_dist,100)]
@@ -84,6 +186,9 @@ def optimize_image_plane(oe,min_dist=3,image_plane=6):
     print('Optimization complete')
 
 class Quad:
+    '''
+    Class to carry around quad information for optimization.
+    '''
 
     def __init__(self,oe,z_indices,r_indices,separate_mirrored=True):
         self.edge_points_list = oe.retrieve_single_quad_edge_points(z_indices,r_indices)
@@ -189,7 +294,7 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_b
     #     return 10000
     if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None)):
         return 10000
-    return calculate_norm_c3(oe)
+    return calculate_c3(oe)
 
 def do_quads_intersect_anything(oe,quads,other_quads):
     for i,quad in enumerate(quads):
@@ -333,7 +438,7 @@ def change_shape_and_calculate(shape,oe,edge_points,other_edges):
         return 10000
     oe.z[edge_points] = z_shape
     oe.r[edge_points] = r_shape
-    return calculate_norm_c3(oe)
+    return calculate_c3(oe)
 
 # calls does_quad_intersect_anything, which is not robust to all intersections
 class OptimizeSingleMagMatShape:
@@ -363,7 +468,7 @@ class OptimizeSingleMagMatShape:
             return 10000
         self.oe.z[self.edge_points] = z_shape
         self.oe.r[self.edge_points] = r_shape
-        return calculate_norm_c3(self.oe)
+        return calculate_c3(self.oe)
 
 # list version is better
 def find_mirrored_edge_points_array(oe,edge_points):

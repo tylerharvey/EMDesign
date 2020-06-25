@@ -51,35 +51,68 @@ def index_array_from_list(index_list):
 
 class OpticalElement:
     '''
-    class for a wide range of optical elements. 
-    specific elements are implemented as subclasses. 
+    Class for a wide range of optical elements. 
+    Specific elements are implemented as subclasses. 
     
-    title : string
-        title printed as the first line of the .dat file
-    output : integer
-        integer flag that controls the field data outputted.
-        0 outputs data only along the z axis.
-        1 outputs data at all FE mesh points.
-        2 outputs data at all mesh points and inside magnetic circuits.
-    axsym : integer
-        boolean flag denoting the symmetry of the element through the x-y  
-        plane (between positive and negative z), with 1 true and 0 false.
-    r_indices : integer ndarray
-        length N 1D array of the radial indices of the FE mesh. begins at 1.
-        (denoted I in MEBS manual.)
-        skipped values are interpolated.
-    z_indices : integer ndarray
-        length M 1D array of the axial indices of the FE mesh. begins at 1.
-        (denoted J in MEBS manual.)
-        skipped values are interpolated.
-    r : float ndarray
-        NxM 2D array of radial coordinates defined on the grid of all 
-        (r_indices,z_indices) points.
-    z : float ndarray
-        NxM 2D array of axial coordinates defined on the grid of all
-        (r_indices,z_indices) points.
-    colwidth : int
-        width of columns to use in the file
+    Attributes:
+        title : string
+            title printed as the first line of the .dat file.
+        output : integer
+            integer flag that controls the field data outputted by MEBS.
+            0 outputs data only along the z axis.
+            1 outputs data at all FE mesh points.
+            2 outputs data at all mesh points and inside magnetic circuits.
+        axsym : integer
+            boolean flag used by MEBS to denote the symmetry of the element 
+            through the x-y plane (between positive and negative z), 
+            with 1 true and 0 false.
+        r_indices : integer ndarray
+            length N 1D array of the radial indices of the FE mesh. first index
+            is 1. (denoted I in MEBS manual.) skipped values are interpolated 
+            in MEBS.
+        z_indices : integer ndarray
+            length M 1D array of the axial indices of the FE mesh. first index
+            is 1.  (denoted J in MEBS manual.) skipped values are interpolated
+            in MEBS.
+        r : float ndarray
+            NxM 2D array of radial coordinates defined on the grid of all 
+            explicit (r_indices,z_indices) points (i.e. defined on the coarse
+            mesh).
+        z : float ndarray
+            NxM 2D array of axial coordinates defined on the grid of all
+            explicit (r_indices,z_indices) points (i.e. defined on the coarse
+            mesh).
+        filename : path
+            full filename of optical element.
+        basename_noext : path
+            name without directories or extension
+        basename : path
+            name without directories
+        potname : path
+            name of potential file
+        filename_noext : path
+            filename with directories and no extension
+        dirname : path
+            directory that contains optical element .dat file.
+
+    User methods:
+        plot_mesh_coarse
+        plot_field
+        write_opt_img_cond_file
+        read_optical_properties
+        calc_rays
+        add_curvature (converts optical element .dat file for FOFEM use)
+
+    Hard-coded attributes:
+        colwidth : int
+            width of columns to use in the optical element file.
+            default 12.
+        imgcondcolwidth : int
+            width of columns to use in optical properties file.
+            default 40.
+        timeout : float
+            seconds to wait before killing MEBS.
+            default 10 minutes.
     '''
     # output = 2
     # axsym = 1
@@ -107,6 +140,25 @@ class OpticalElement:
     # these are almost exactly the same except they have radii of curvature
     # sections after the mesh that looks like the mesh blocks
     def __init__(self,filename='',verbose=False,so=False):
+        '''
+        Initialize an instance of an optical element.
+
+        Parameters:
+            filename : path
+                full filename pointing to the optical element .dat file.
+
+        Optional flags:
+            verbose : boolean
+                captures as much output as possible and plots often.
+                default False
+            so : boolean
+                denotes whether the optical element .dat file includes 
+                curvature coordinates for compatibility with MEBS SOFEM.
+                (OPTICS does not use curvature.) flag will automatically 
+                flip to True if curvature coordinates are found.
+                default False
+        '''
+
         self.so=so
         self.infile = []
         self.initialize_lists()
@@ -267,16 +319,38 @@ class OpticalElement:
     def write_other_blocks(self,f):
         pass
         
-    def plot_mesh_coarse(self,quads_on=False,adj=6,zlim=None,rlim=None):
+    def plot_mesh_coarse(self,quads_on=True,index_labels=True,adj=6,zlim=None,rlim=None):
+        '''
+        Plots mesh.
+
+        Optional parameters:
+            quads_on : boolean
+                determines whether magnetic materials, coils, electrodes, etc.
+                are also plotted.
+                default True
+            index_labels : boolean
+                determines whether mesh indices are labeled.
+            adj : float 
+                offset of mesh labels from matplotlib axes.
+                default 6
+            zlim : tuple or list of two floats
+                sets matplotlib xlim to zoom in on region of the z axis.
+                generally looks horrible with index_labels=True.
+            rlim : tuple or list of two floats
+                sets matplotlib ylim to zoom in on region of th r axis.
+                generally looks horrible with index_labels=True.
+        '''
         # plt.scatter(self.z.flatten(),self.r.flatten(),)
         for n in range(self.z.shape[0]):
-            # add r index label
-            plt.text(self.z[n,:].max()+adj,self.r[n,np.argmax(self.z[n,:])],self.r_indices[n])
+            if(index_labels):
+                # add r index label
+                plt.text(self.z[n,:].max()+adj,self.r[n,np.argmax(self.z[n,:])],self.r_indices[n])
             # plot this iso-r-index line
             plt.plot(self.z[n,:],self.r[n,:],color='m')
         for n in range(self.z.shape[1]):
-            # add z index label
-            plt.text(self.z[np.argmax(self.r[:,n]),n],self.r[:,n].max()+adj,self.z_indices[n])
+            if(index_labels):
+                # add z index label
+                plt.text(self.z[np.argmax(self.r[:,n]),n],self.r[:,n].max()+adj,self.z_indices[n])
             # plot this iso-z-index line
             plt.plot(self.z[:,n],self.r[:,n],color='m')
         self.plot_quads() if quads_on else 0
@@ -353,6 +427,11 @@ class OpticalElement:
         return string
 
     def plot_field(self):
+        '''
+        Plots the magnetic field calculated by MEBS. Run after calc_field().
+
+        No parameters. 
+        '''
         try:
             with cd(self.dirname):
                 z,B = np.genfromtxt(self.potname,dtype=float,skip_header=7,skip_footer=4,unpack=True)
@@ -362,8 +441,16 @@ class OpticalElement:
                 plt.show()
         except OSError:
             print('No file with name {} found. Run calc_field first.'.format(self.potname))
+            raise FileNotFoundError
 
     def add_curvature(self):
+        '''
+        Converts optical element .dat file used for optics into a file 
+        compatible with MEBS SOFEM by adding curvature coordinates.
+        
+        No arguments.
+        '''
+
         if(hasattr(self,'r_curv')):
             raise Exception('Curvatures already defined.')
         self.r_curv = np.zeros_like(self.r)
@@ -371,6 +458,10 @@ class OpticalElement:
         self.so = True
 
     def calc_rays(self):
+        '''
+        Untested. In principle calls MEBS to calculate ray trajectories based 
+        on a computed potential.
+        '''
         with cd(self.dirname):
             try:
                 print(subprocess.run(["soray.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
@@ -379,6 +470,56 @@ class OpticalElement:
                 self.calc_rays()
 
     def write_opt_img_cond_file(self,imgcondfilename,n_intervals=200,energy=200000,energy_width=1,aperture_angle=30,obj_pos=0,img_pos=6,n_intermediate_images=0,lens_pos=0,lens_strength=1,lens_scale=1,precision=6,auto_focus=1):
+        '''
+        Writes optical imaging conditions file. Must be run before calc_properties_optics().
+
+        Parameters:
+            imgcondfilename : path
+                full filename to write imaging conditions file to.
+
+        Optional parameters:
+            n_intervals : int
+                number of integration steps along z.
+                default 200
+            energy : float 
+                electron energy in eV.
+                default 200000
+            energy_width : float
+                electron energy width in eV.
+                default 1
+            aperture_angle : float
+                semi-angle in mrad at image plane.
+                default 30
+            obj_pos : float
+                object plane (z position in mm).
+                default 0
+            img_pos : float
+                image plane (z position in mm).
+                default 6
+            n_intermediate_images : int
+                number of intermediate image planes that should occur before the specified plane.
+                default 0
+            lens_pos :  float
+                lens z position (in mm).
+                default 0
+            lens_strength : float
+                scaling factor for the lens strength. should do nothing with
+                autofocusing on.
+                default 1
+            precision : int
+                number of digits with which to save floats.
+                default 6.
+            auto_focus : boolean integer
+                if 1, MEBS ignores specified lens currents/voltages and 
+                auto-focuses to specified image plane.
+                if 0 and no image plane specified, uses specified currents in 
+                optical element .dat file. unclear what happens if image plane
+                is specified and auto_focus=1.
+                default 1 and is highly recommended as MEBS will throw pop-ups
+                asking about which image plane to use for computing optical
+                properties if the lens strength is high enough to create 
+                multiple image planes. 
+        '''
         self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
         self.lensfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=precision)
         self.imgcondfilename = imgcondfilename
@@ -414,6 +555,12 @@ class OpticalElement:
     # this is bound to break when the .res file changes 
     # in ways I haven't foreseen. fix as needed.
     def read_optical_properties(self):
+        '''
+        Run after calc_properties_optics() to read in the computed optical 
+        properties.
+
+        No arguments.
+        '''
         pf = open(os.path.join(self.dirname,self.imgcondbasename_noext+'.res'),'r')
         properties_lines = pf.readlines()
         # see end of this file for snippets of the .res file 
@@ -444,6 +591,31 @@ class StrongMagLens(OpticalElement):
     class for reading and writing MEBS magnetic lens files that use hysteresis
     curves (H-B curves, in fact here without any hysteresis) for magnetic 
     materials and explicitly included coils to model magnetic lenses.
+
+    Attributes:
+        mag_mat_z_indices : list
+        mag_mat_r_indices : list
+            N two-element arrays for the r and z indices of 
+            N different quads for magnetic materials
+
+        self.mag_mat_curve_indices = [] 
+            list of N indices with values from 1 to M denoting which 
+            hysteresis curve to use for each magnetic material quad
+        
+        self.coil_z_indices = [] 
+        self.coil_r_indices = []
+            L two-element arrays for the r and z indices for L coil quads
+        
+        self.coil_curr = [] 
+            L current values for these L quads (A-turns/cm^2)
+        
+        self.H_arrays = [] 
+        self.B_arrays  = [] 
+            these two lists store M different hysteresis curves for the magnetic materials
+
+    User methods:
+        plot_hyst
+        calc_field
     '''
 
     def initialize_lists(self):
@@ -506,8 +678,16 @@ class StrongMagLens(OpticalElement):
         self.B_arrays.append(lines[:,1])
         return line_num+1 # start of next block
     
-    def plot_hyst(self):
-        plt.plot(self.H_arrays[-1],self.B_arrays[-1])
+    def plot_hyst(self,i=-1):
+        '''
+        Plots H-B curve for specified magnetic material.
+
+        Optional parameters:
+            i : int
+                python index denoting which magnetic material to plot.
+                default -1 (last)
+        '''
+        plt.plot(self.H_arrays[i],self.B_arrays[i])
         plt.title(f"Hysteresis curve #{len(self.H_arrays)}")
         plt.xlabel("H (A-turns/m)")
         plt.ylabel("B (T)")
@@ -549,6 +729,11 @@ class StrongMagLens(OpticalElement):
             self.plot_quad(self.coil_z_indices[l],self.coil_r_indices[l],color='r')
 
     def calc_field(self):
+        '''
+        Calls somlenss.exe to calculate magnetic field for this lens.
+
+        No arguments.
+        '''
         with cd(self.dirname):
             outputmode = subprocess.PIPE if self.verbose else None
             try:
@@ -602,6 +787,11 @@ class WeakMagLens(StrongMagLens):
         self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_mu_r,self.rel_perm_fmt)
 
     def calc_field(self):
+        '''
+        Calls somlensc.exe to calculate magnetic field for this lens.
+
+        No arguments.
+        '''
         with cd(self.dirname):
             try:
                 print(subprocess.run(["somlensc.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
@@ -695,6 +885,11 @@ class WeakMagLens_PP_Region(WeakMagLens):
         self.plot_mag_mat()
 
     def calc_field(self):
+        '''
+        Calls somlensp.exe to calculate magnetic field for this lens.
+
+        No arguments.
+        '''
         with cd(self.dirname):
             try:
                 print(subprocess.run(["somlensp.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
