@@ -162,7 +162,7 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     bounds = n_edge_pts*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
     if(method=='Nelder-Mead' and options.get('initial_simplex') == None):
         print('Generating initial simplex.')
-        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),scale=scale)
+        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),scale=simplex_scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
         result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,True,np.array(bounds)),method=method,options=options)

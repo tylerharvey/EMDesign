@@ -43,7 +43,7 @@ def calc_properties_optics(oe):
     '''
     with cd(oe.dirname):
         outputmode = subprocess.PIPE if oe.verbose else None
-        if(os.path.exists(os.imgcondfilename) != True):
+        if(os.path.exists(oe.imgcondfilename) != True):
             print('No optical imaging conditions file found. Run OpticalElement.write_opt_img_cond_file() first.')
             raise FileNotFoundError
         try:
