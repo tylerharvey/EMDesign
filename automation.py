@@ -107,7 +107,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts)
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None},simplex_scale=5):
+def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -171,6 +171,8 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,n_edge_pts)
+    if(method=='Nelder-Mead' and options.get('return_all') == True):
+        np.save(oe.filename_noext+'all_solns',result['allvecs'])
 
 def optimize_image_plane(oe,min_dist=3,image_plane=6):
     '''

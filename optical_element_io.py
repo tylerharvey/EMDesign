@@ -94,6 +94,19 @@ class OpticalElement:
             filename with directories and no extension
         dirname : path
             directory that contains optical element .dat file.
+        c3 : float
+            spherical aberration in mm (set by read_optical_properties)
+        cc : float
+            chromatic aberration in mm (set by read_optical_properties)
+        f : float
+            focal length in mm (set by read_optical_properties)
+        f_real : float
+            physical position of back focal plane in mm 
+            (set by read_optical_properties)
+        mag : float
+            magnification (set by read_optical_proerties)
+        rot : float
+            image rotation in deg (set by read_optical_properties)
 
     User methods:
         plot_mesh_coarse
