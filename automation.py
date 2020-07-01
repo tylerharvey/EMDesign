@@ -172,7 +172,7 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     print(result.message)
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,n_edge_pts)
     if(method=='Nelder-Mead' and options.get('return_all') == True):
-        np.save(oe.filename_noext+'all_solns',result['allvecs'])
+        np.save(oe.filename_noext+'_all_solns',result['allvecs'])
 
 def optimize_image_plane(oe,min_dist=3,image_plane=6):
     '''
@@ -294,7 +294,7 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_b
     #         return 10000
     # if(do_quads_intersect_anything(oe,quads,other_quads)):
     #     return 10000
-    if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None)):
+    if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=enforce_bounds,bounds=bounds)):
         return 10000
     return calculate_c3(oe)
 
