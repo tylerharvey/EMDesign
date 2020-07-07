@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys,os,subprocess,shutil,datetime
+from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
@@ -909,6 +910,12 @@ class WeakMagLens_PP_Region(WeakMagLens):
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')
                 self.calc_field()
+
+class ElecLens(OpticalElement):
+    '''
+    Class for electrostatic lenses and mirrors.
+    
+    '''
 
 
 # example_strong = strong_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlenss1.dat",verbose=True)
