@@ -474,6 +474,23 @@ class OpticalElement:
         self.fine_segments = segments
         return segments
 
+    # makes the smallest possible fine mesh segments
+    # not useful except for finding fine-fine intersections
+    def define_exhaustive_fine_mesh_segments(self):
+        segments = []
+        r_interpolator = interp2d(self.z_indices,self.r_indices,self.r)
+        z_interpolator = interp2d(self.z_indices,self.r_indices,self.z)
+        # MEBS uses half-integer steps for the fine mesh
+        step = 0.5
+        for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
+            for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
+                if(r_index < self.r_indices[-1]):
+                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index,r_index+step),r_interpolator(z_index,r_index+step))))
+                if(z_index < self.z_indices[-1]):
+                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index+step,r_index),r_interpolator(z_index+step,r_index))))
+        self.fine_segments = segments
+        return segments
+
     def plot_quad(self,z_indices,r_indices,color='k'):
         for seg in self.retrieve_segments(z_indices,r_indices):
             plt.plot(self.z[seg],self.r[seg],color=color)
