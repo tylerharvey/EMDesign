@@ -321,6 +321,7 @@ def do_quads_intersect_anything(oe,quads,other_quads):
 def does_coarse_mesh_intersect(oe):
     return intersections_in_segment_list(oe.define_coarse_mesh_segments())
 
+# always returns true with present definition of fine mesh
 def does_fine_mesh_intersect(oe):
     return intersections_in_segment_list(oe.define_fine_mesh_segments())
 
@@ -376,13 +377,15 @@ def do_segments_intersect(p1,p2,q1,q2):
     # counting collinear points as non-intersecting
     if(cpa == 0 or cpb == 0 or cpc == 0 or cpd == 0):
         return False 
-    else:
-        return (cpa != cpb and cpc != cpd)
+    return (cpa != cpb and cpc != cpd)
     ## return (cross_product_sign(p1,p2,q1) != cross_product_sign(p1,p2,q2) and cross_product_sign(q1,q2,p1) != cross_product_sign(q1,q2,p2))
 
 # cross product of p1->p2 and p1->p3
-def cross_product_sign(p1,p2,p3):
-    return np.sign((p2.z-p1.z)*(p3.r-p1.r) - (p3.z-p1.z)*(p2.r-p1.r))
+def cross_product_sign(p1,p2,p3,tol=1e-10):
+    cp = (p2.z-p1.z)*(p3.r-p1.r) - (p3.z-p1.z)*(p2.r-p1.r)
+    if(abs(cp) < tol): # allow collinearity with some finite tolerance
+        return 0
+    return np.sign(cp)
 
 #######
 # outdated functions

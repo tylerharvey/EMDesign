@@ -464,11 +464,13 @@ class OpticalElement:
         # MEBS uses half-integer steps for the fine mesh
         step = 0.5
         for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
-            for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
-                if(r_index < self.r_indices[-1]):
-                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index,r_index+step),r_interpolator(z_index,r_index+step))))
-                if(z_index < self.z_indices[-1]):
-                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index+step,r_index),r_interpolator(z_index+step,r_index))))
+            # make coarse mesh-sized segments from fine mesh
+            # skip last point as second point in segment doesn't exist
+            for i,z_index in enumerate(self.z_indices[:-1]):
+                segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(self.z_indices[i+1],r_index),r_interpolator(self.z_indices[i+1],r_index))))
+        for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
+            for i,r_index in enumerate(self.r_indices[:-1]):
+                segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index,self.r_indices[i+1]),r_interpolator(z_index,self.r_indices[i+1]))))
         self.fine_segments = segments
         return segments
 
