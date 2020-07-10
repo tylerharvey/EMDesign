@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
-from optical_element_io import cd,index_array_from_list
+from optical_element_io import cd,index_array_from_list,Point
 from calculate_optical_properties import calc_properties_optics
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
@@ -264,8 +264,10 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bound
     if(enforce_bounds):
         if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
             return True
-    if(do_quads_intersect_anything(oe,quads,other_quads)):
+    if(does_fine_mesh_intersect_coarse(oe)):
         return True
+    # if(do_quads_intersect_anything(oe,quads,other_quads)):
+    #     return True
     return False
 
 def find_mirrored_edge_points(oe,edge_points_list):
@@ -314,21 +316,33 @@ def do_quads_intersect_anything(oe,quads,other_quads):
         for other_quad in other_quads[i:]:
             if(does_quad_intersect_other_quad(oe.z[quad.original_edge_points],oe.r[quad.original_edge_points],oe.z[other_quad.original_edge_points],oe.r[other_quad.original_edge_points])):
                 return True
-
-
     return False
 
-class Point(object):
-    def __init__(self,z,r):
-        self.z = z
-        self.r = r
+def does_coarse_mesh_intersect(oe):
+    return intersections_in_segment_list(oe.define_coarse_mesh_segments())
 
-    def print(self):
-        print(f"z: {self.z}, r: {self.r}")
+def does_fine_mesh_intersect(oe):
+    return intersections_in_segment_list(oe.define_fine_mesh_segments())
 
-    def __eq__(self,other):
-        return self.__dict__ == other.__dict__
-        
+def intersections_in_segment_list(segments):
+    for i,segment in enumerate(segments):
+        for other_segment in segments[i+1:]:
+            if(do_segments_intersect(*segment,*other_segment)):
+                return True
+    return False
+
+# also checks coarse-coarse
+def does_fine_mesh_intersect_coarse(oe):
+    fine_segments = oe.define_fine_mesh_segments()
+    return intersections_between_two_segment_lists(fine_segments,oe.define_coarse_mesh_segments())
+
+def intersections_between_two_segment_lists(segments,other_segments):
+    for segment in segments:
+        for other_segment in other_segments:
+            if(do_segments_intersect(*segment,*other_segment)):
+                return True
+    return False
+
 # generalized function for checking for intersecting line segments 
 # between two quads
 # can also be used to check self-intersection
@@ -344,9 +358,10 @@ def does_quad_intersect_other_quad(z_shape,r_shape,other_quad_z,other_quad_r):
             # exclude cases where segments share at least one point
             # these are counted as intersecting by do_segments_intersect
             # but that intersection is fine
-            if(p1 == q1 or p1 == q2 or p2 == q2 or p2 == q1):
-                continue
-            if(do_segments_intersect(p1,p2,q1,q2) == True):
+            ## if(p1 == q1 or p1 == q2 or p2 == q2 or p2 == q1):
+            ##     continue
+            # now handled by do_segments_intersect
+            if(do_segments_intersect(p1,p2,q1,q2)):
                 return True
     return False
 
@@ -354,7 +369,16 @@ def does_quad_intersect_other_quad(z_shape,r_shape,other_quad_z,other_quad_r):
 # and if p1 and p2 are on opposite sides of q1-q2
 # based on www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
 def do_segments_intersect(p1,p2,q1,q2):
-    return (cross_product_sign(p1,p2,q1) != cross_product_sign(p1,p2,q2) and cross_product_sign(q1,q2,p1) != cross_product_sign(q1,q2,p2))
+    cpa = cross_product_sign(p1,p2,q1)
+    cpb = cross_product_sign(p1,p2,q2)
+    cpc = cross_product_sign(q1,q2,p1)
+    cpd = cross_product_sign(q1,q2,p2)
+    # counting collinear points as non-intersecting
+    if(cpa == 0 or cpb == 0 or cpc == 0 or cpd == 0):
+        return False 
+    else:
+        return (cpa != cpb and cpc != cpd)
+    ## return (cross_product_sign(p1,p2,q1) != cross_product_sign(p1,p2,q2) and cross_product_sign(q1,q2,p1) != cross_product_sign(q1,q2,p2))
 
 # cross product of p1->p2 and p1->p3
 def cross_product_sign(p1,p2,p3):

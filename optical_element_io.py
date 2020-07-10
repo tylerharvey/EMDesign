@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
+from scipy.interpolate import interp2d
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -35,6 +36,17 @@ def cd(newdir):
     finally:
         os.chdir(prevdir)
 
+class Point(object):
+    def __init__(self,z,r):
+        self.z = z
+        self.r = r
+
+    def print(self):
+        print(f"z: {self.z}, r: {self.r}")
+
+    def __eq__(self,other):
+        return self.__dict__ == other.__dict__
+        
 def np_indices(indices,index_set):
     np_index_array = []
     for index in index_set:
@@ -376,6 +388,24 @@ class OpticalElement:
         plt.gca().set_aspect('equal')
         plt.show()
         
+    def plot_mesh_segments(self,segments,quads_on=True):
+        '''
+        Plots mesh (coarse or fine) from a list of segments (Point1,Point2).
+
+        Parameters:
+            segments : list
+                list of all segments to plot
+            quads_on : boolean
+                optional flag to also plot quads
+        '''
+        for segment in segments:
+            plt.plot([segment[0].z,segment[1].z],[segment[0].r,segment[1].r],color='m')
+        self.plot_quads() if quads_on else 0
+        plt.xlabel("z (mm)")
+        plt.ylabel("r (mm)")
+        plt.gca().set_aspect('equal')
+        plt.show()
+
     def plot_quads(self):
         pass
     
@@ -414,6 +444,33 @@ class OpticalElement:
                 points.append((seg[0][m],seg[1][m]))
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
         return index_array_from_list(unique_points) if return_ind_array else unique_points
+
+    # collect all segments in the coarse mesh into a list
+    def define_coarse_mesh_segments(self):
+        segments = []
+        for i in range(self.z.shape[0]):
+            for j in range(self.z.shape[1]):
+                if(i+1 < self.z.shape[0]):
+                    segments.append((Point(self.z[i,j],self.r[i,j]),Point(self.z[i+1,j],self.r[i+1,j])))
+                if(j+1 < self.z.shape[1]):
+                    segments.append((Point(self.z[i,j],self.r[i,j]),Point(self.z[i,j+1],self.r[i,j+1])))
+        self.coarse_segments = segments
+        return segments
+
+    def define_fine_mesh_segments(self):
+        segments = []
+        r_interpolator = interp2d(self.z_indices,self.r_indices,self.r)
+        z_interpolator = interp2d(self.z_indices,self.r_indices,self.z)
+        # MEBS uses half-integer steps for the fine mesh
+        step = 0.5
+        for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
+            for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
+                if(r_index < self.r_indices[-1]):
+                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index,r_index+step),r_interpolator(z_index,r_index+step))))
+                if(z_index < self.z_indices[-1]):
+                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index+step,r_index),r_interpolator(z_index+step,r_index))))
+        self.fine_segments = segments
+        return segments
 
     def plot_quad(self,z_indices,r_indices,color='k'):
         for seg in self.retrieve_segments(z_indices,r_indices):
