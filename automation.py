@@ -264,7 +264,7 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bound
     if(enforce_bounds):
         if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
             return True
-    if(does_fine_mesh_intersect_coarse(oe)):
+    if(does_coarse_mesh_intersect(oe) or does_fine_mesh_intersect_coarse(oe)):
         return True
     # if(do_quads_intersect_anything(oe,quads,other_quads)):
     #     return True
@@ -332,10 +332,12 @@ def intersections_in_segment_list(segments):
                 return True
     return False
 
-# also checks coarse-coarse
+# only checks non-coarse fine with coarse
 def does_fine_mesh_intersect_coarse(oe):
     fine_segments = oe.define_fine_mesh_segments()
-    return intersections_between_two_segment_lists(fine_segments,oe.define_coarse_mesh_segments())
+    # oe.coarse_segments should already be defined
+    fine_no_coarse = [segment for segment in fine_segments if not in oe.coarse_segments]
+    return intersections_between_two_segment_lists(fine_no_coarse,oe.coarse_segments)
 
 def intersections_between_two_segment_lists(segments,other_segments):
     for segment in segments:
