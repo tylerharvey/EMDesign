@@ -14,7 +14,7 @@ from calculate_optical_properties import calc_properties_optics
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 
-def calculate_c3(oe):
+def calculate_c3(oe,curr_bound=None):
     '''
     Workhorse function for automation. Writes optical element file, then 
     calculates field, then calculates optical properties, and then reads them.
@@ -32,6 +32,12 @@ def calculate_c3(oe):
     except UnboundLocalError: # if optics fails, return garbage
         return 100
     print(f"f: {oe.f}, C3: {oe.c3}")
+    if(curr_bound):
+        coil_area = 0
+        for i in range(len(oe.coil_z_indices)):
+            coil_area += oe.determine_quad_area(oe.coil_z_indices[i],oe.coil_r_indices[i])
+        if(oe.lens_curr/coil_area > curr_bound):
+            return 100
     return np.abs(oe.c3)
 
 def change_current_and_calculate(current,oe):
@@ -107,7 +113,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts)
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5):
+def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -150,6 +156,9 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
             in a longer search that is more likely to find a qualitatively
             different shape.
             default 5
+        curr_bound : float
+            bound for maximum current desnity in first magnetic lens. 
+            default 3 A/mm^2 current density limit
     '''
     oe.verbose=False
     quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
@@ -160,12 +169,12 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
     initial_shape = np.concatenate((oe.z[edge_points],oe.r[edge_points],oe.r[mirrored_edge_points]))
     bounds = n_edge_pts*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
-    if(method=='Nelder-Mead' and options.get('initial_simplex') == None):
+    if(method=='Nelder-Mead' and len(options.get('initial_simplex')) == 0):
         print('Generating initial simplex.')
         options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),scale=simplex_scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,True,np.array(bounds)),method=method,options=options)
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,True,np.array(bounds),curr_bound),method=method,options=options)
     else:
         result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts),bounds=bounds,method=method,options=options)
     print('Optimization complete with success flag {}'.format(result.success))
@@ -285,7 +294,7 @@ def change_imgplane_and_calculate(imgplane,oe):
     print(f"f: {oe.f}, C3: {oe.c3}")
     return np.abs(oe.c3)
 
-def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None):
+def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None,curr_bound=None):
     # z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
     # for quad in quads:
     #     oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
@@ -298,7 +307,7 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_b
     #     return 10000
     if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=enforce_bounds,bounds=bounds)):
         return 10000
-    return calculate_c3(oe)
+    return calculate_c3(oe,curr_bound)
 
 def do_quads_intersect_anything(oe,quads,other_quads):
     for i,quad in enumerate(quads):
@@ -336,7 +345,7 @@ def intersections_in_segment_list(segments):
 def does_fine_mesh_intersect_coarse(oe):
     fine_segments = oe.define_fine_mesh_segments()
     # oe.coarse_segments should already be defined
-    fine_no_coarse = [segment for segment in fine_segments if not in oe.coarse_segments]
+    fine_no_coarse = [segment for segment in fine_segments if segment not in oe.coarse_segments]
     return intersections_between_two_segment_lists(fine_no_coarse,oe.coarse_segments)
 
 def intersections_between_two_segment_lists(segments,other_segments):

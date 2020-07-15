@@ -62,6 +62,9 @@ def index_array_from_list(index_list):
     tmp_array = np.array(index_list)
     return (tmp_array[:,0],tmp_array[:,1])
 
+def calculate_area(x,y):
+    return 0.5*np.abs((x[:-1]*y[1:]-x[1:]*y[:-1]).sum()+x[-1]*y[0]-x[0]*y[-1])
+
 class OpticalElement:
     '''
     Class for a wide range of optical elements. 
@@ -120,6 +123,8 @@ class OpticalElement:
             magnification (set by read_optical_proerties)
         rot : float
             image rotation in deg (set by read_optical_properties)
+        lens_curr : float
+            current in first magnetic lens in A-turns (set by read_optical ...)
 
     User methods:
         plot_mesh_coarse
@@ -445,6 +450,10 @@ class OpticalElement:
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
+    def determine_quad_area(self,quad_z_indices,quad_r_indices):
+        points = self.retrieve_single_quad_edge_points(quad_z_indices,quad_r_indices,return_ind_array=True)
+        return calculate_area(self.z[points],self.r[points])
+
     # collect all segments in the coarse mesh into a list
     def define_coarse_mesh_segments(self):
         segments = []
@@ -659,6 +668,7 @@ class OpticalElement:
             if 'FIRST-ORDER PROPERTIES' in line:
                 linenum_mag = i+10
                 linenum_rot = i+11
+                linenum_curr = i+5
             if 'Magnetic Lens      No.  1' in line: # change if more lenses
                 linenum_f = i+9
                 linenum_f_real = i+5
@@ -668,6 +678,15 @@ class OpticalElement:
                 linenum_cc = i+3
         self.mag = float(properties_lines[linenum_mag].split()[3])
         self.rot = float(properties_lines[linenum_rot].split()[5]) # deg
+        self.lens_curr = float(properties_lines[linenum_curr].split()[7])
+        ## I didn't need to implement this yet
+        # self.lens_curr = []
+        # i = 0
+        # lens_curr_line = properties_lines[linenum_curr+i].split()
+        # while(len(lens_curr_line) == 8):
+        #     self.lens_curr.append(float(lens_curr_line[7]))
+        #     i += 1
+        #     lens_curr_line = properties_lines[linenum_curr+i].split()
         self.f = float(properties_lines[linenum_f].split()[8]) # mm 
         self.f_real = float(properties_lines[linenum_f_real].split()[8]) # mm
         self.c3 = float(properties_lines[linenum_c3].split()[2])*1e3 # m to mm
