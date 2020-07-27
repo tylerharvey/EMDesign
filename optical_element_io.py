@@ -1011,6 +1011,98 @@ class ElecLens(OpticalElement):
     Class for electrostatic lenses and mirrors.
     
     '''
+    def initialize_lists(self):
+        # N two-element arrays for the r and z indices of 
+        # N different quads for electrodes
+        self.electrode_z_indices = [] 
+        self.electrode_r_indices = []
+        
+        # N lists of length-M arrays that delineate independence of electrodes
+        self.electrode_unit_potentials = []
+        
+        # L two-element arrays for the r and z indices for L dielectric quads
+        self.dielectric_z_indices = [] 
+        self.dielectric_r_indices = []
+        
+        # L dielectric constants for these L quads (unitless)
+        # i.e. relative permittivity
+        self.dielectric_constants = [] 
+        
+        # list of arrays for each section
+        # boundary_unit_potentials arrays are 2D, where second dimension is length-M
+        self.boundary_indices = []
+        self.boundary_unit_potentials = []
+    
+    
+    def read_other_blocks(self,line_num):
+        line_num = self.read_electrodes(line_num)
+        line_num = self.read_dielectrics(line_num)
+        self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
+        line_num = self.read_boundaries(line_num)
+    
+    # read_quad with one line tweaked
+    def read_electrodes(self,line_num):
+        while(self.infile[line_num].isspace() != True):
+            indices = np.fromstring(self.infile[line_num],dtype=int,count=4,sep=' ')
+            self.electrode_z_indices.append(indices[:2])
+            self.electrode_r_indices.append(indices[2:4])
+            self.electrode_unit_potentials.append(np.fromstring(self.infile[line_num],dtype=int,sep=' ')[4:])
+            line_num+=1
+        return line_num+1 # start of next block
+    
+    def read_dielectrics(self,line_num):
+        return self.read_quad(line_num,self.dielectric_z_indices,self.dielectric_r_indices,self.dielectric_constants,property_dtype=float)
+    
+    def write_other_blocks(self,f):
+        # FIX
+        self.write_mag_mat(f)
+        self.write_coil(f)
+        self.write_hyst(f) # leaves one blank line at end of section
+        f.write("\n\n") # three blank lines for a strong magnetic lens
+    
+    def write_mag_mat(self,f):
+        self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_curve_indices,self.int_fmt)
+    
+    def write_coil(self,f):
+        self.write_quad(f,self.coil_z_indices,self.coil_r_indices,self.coil_curr,self.curr_fmt)
+
+    def write_hyst(self,f):
+        M = len(self.H_arrays)
+        for m in range(M):
+            for k in range(len(self.H_arrays[m])):
+                f.write(self.check_len(self.field_fmt.format(self.H_arrays[m][k])))
+                f.write(self.check_len(self.field_fmt.format(self.B_arrays[m][k])))
+                f.write("\n")
+            f.write("\n")
+            
+    def plot_quads(self):
+        self.plot_mag_mat()
+        self.plot_coil()
+    
+    def plot_mag_mat(self):
+        N = len(self.mag_mat_r_indices)
+        for n in range(N):
+            self.plot_quad(self.mag_mat_z_indices[n],self.mag_mat_r_indices[n],color='k')
+            
+    def plot_coil(self):
+        L = len(self.coil_r_indices)
+        for l in range(L):
+            self.plot_quad(self.coil_z_indices[l],self.coil_r_indices[l],color='r')
+
+    def calc_field(self):
+        '''
+        Calls somlenss.exe to calculate magnetic field for this lens.
+
+        No arguments.
+        '''
+        with cd(self.dirname):
+            outputmode = subprocess.PIPE if self.verbose else None
+            try:
+                output = subprocess.run(["somlenss.exe",self.basename_noext],stdout=outputmode,timeout=self.timeout).stdout
+                print(output.decode('utf-8')) if self.verbose else None
+            except TimeoutExpired:
+                print('Field calculation timed out. Rerunning.')
+                self.calc_field()
 
 
 # example_strong = strong_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlenss1.dat",verbose=True)
