@@ -160,6 +160,7 @@ class OpticalElement:
     int_fmt = Template("{:${colwidth}d}").substitute(colwidth=colwidth)
     float_fmt = Template("{:${colwidth}.${precision}g}")
     imgcondprop_fmt = Template("{:<${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth)
+    imgcondsubprop_fmt = Template("  {:<${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth-2)
     imgcondtext_fmt = Template("{:>${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth)
     imgcondint_fmt = Template("{:>${imgcondcolwidth}d}").substitute(imgcondcolwidth=imgcondcolwidth)
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
@@ -206,7 +207,7 @@ class OpticalElement:
         self.filename = filename
         self.basename_noext = os.path.splitext(os.path.basename(filename))[0] # name without directories or extension
         self.basename = os.path.basename(filename) # name without directories
-        self.potname = self.basename_noext+'.axb' # name of potential file
+        self.fitname = self.basename_noext+'.fit' # name of potential file
         self.filename_noext = os.path.splitext(filename)[0] # with directories
         self.dirname = os.path.dirname(filename)
         self.infile = list(f) # creates a list with one entry per line of f
@@ -282,7 +283,7 @@ class OpticalElement:
             line_num+=1
         return line_num+1 # start of next block
     
-    def write(self,outfilename,title=None,coord_precision=6,curr_precision=6,field_precision=6,rel_perm_precision=6):
+    def write(self,outfilename,title=None,coord_precision=6,curr_precision=6,field_precision=6,rel_perm_precision=6,voltage_precision=6):
         if not title:
             title = self.title
         else:
@@ -292,6 +293,7 @@ class OpticalElement:
         self.curr_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=curr_precision)
         self.field_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=field_precision)
         self.rel_perm_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=rel_perm_precision)
+        self.voltage_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=voltage_precision)
         
         f = open(outfilename,'w')
         self.filename = outfilename
@@ -417,6 +419,8 @@ class OpticalElement:
     def retrieve_segments(self,z_indices,r_indices):
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
+        if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
+            raise ValueError('Quads that are not defined on the coarse mesh are not implemented.')
         seg_np_indices = []
         seg_np_indices.append((np.repeat(np_r_indices.min(),len(np_z_indices)),np_z_indices))
         seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
@@ -558,19 +562,332 @@ class OpticalElement:
 
     def calc_rays(self):
         '''
-        Untested. In principle calls MEBS to calculate ray trajectories based 
-        on a computed potential.
+        Run after write_raytrace_file() to calculate rays.
+
+        No parameters.
         '''
         with cd(self.dirname):
             try:
-                print(subprocess.run(["soray.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
+                print(subprocess.run(["soray.exe",self.raytracebasename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 print('Ray tracing timed out. Rerunnning.')
                 self.calc_rays()
 
+    def write_raytrace_file(self,mircondfilename,source_pos=90,source_size=1000,semiangle=10,energy=200000,initial_direction=180,lens_type='Electrostatic',lens_pos=0,lens_excitation=None,potentials=None,screen_pos=95,relativity=False,cyl_symm=True,r_samples=3,alpha_samples=3,precision=6,n_equipotentials=50):
+        '''
+        Creates an input file for SORAY.exe. Primarily for visualizing columns
+        implemented in MIRROR. All physical parameters have same name, units
+        and default as in write_mir_img_cond_file(), even when SORAY does not
+        share units with MIRROR.
+
+        Parameters:
+            mircondfilename : path
+                full filename to write imaging conditions file to.
+
+        Optional parameters:
+            source_pos : float
+                Source z position (mm). The "source" is the starting 
+                position of rays for auto-focusing. 
+                Default 90.
+            source_size: float
+                Source size (microns). Not related to resolution; just the
+                starting size of the ray bundle.
+                Default 1000.
+            semiangle : float
+                Semiangle (mrad) for emission from source.
+                Default 10.
+            energy : float
+                Beam kinetic energy (eV). Default 200000.
+            initial_direction : float
+                Polar angle (deg) of initial direction. 0 for forwards 
+                propagation or 180 for reverse. 
+                Default 180.
+            lens_type : str
+                Type of lens: 'Electrostatic' or 'Magnetic'. Multiple
+                lenses not yet implemented.
+                Default 'Electrostatic'.
+            lens_pos : float
+                Lens z position (mm). Default 10. **
+            lens_excitation : string
+                Specifies excitation strength of magnetic round lens or
+                magnetic or electric multipole. Contains a floating point 
+                number and a flag. Units are A-turns for magnetic or volts for 
+                electric. Flag options are f for fixed, vn for variable, where
+                n is an integer grouping lenses varied together (e.g. v1)
+                during autofocusing, or d for dynamic. The purpose of the 
+                dynamic option is unclear. Default None for unused.
+            potentials : MirPotentials instance
+                The MirPotentials class is defined in the ElecLens class.
+                This class is used to sensibly store and format the string
+                used for specifying the potentials of several electrodes.
+                Default None for unused. **
+            screen_pos : float
+                Screen plane z position (mm). End position of rays for auto-
+                focusing. Default 95.
+            relativity : bool
+                Determines whether relativistic effects are included. 
+                Default False.
+            cyl_symm : bool
+                Determines whether to use 2D initial positions for rays.
+                Default True.
+            r_samples : int
+                Number of samples of initial positions in the radial direction.
+                Default 3.
+            alpha_samples : int
+                Number of samples of initial polar angles. Default 3.
+            n_equipotentials : int
+                Number of equally-spaced equipotentials to plot.
+                Default 50.
+        '''
+        # SORAY uses mm
+        x_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
+        if(cyl_symm):
+            y_positions = np.array([0])
+        else:
+            y_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
+
+        # SORAY uses degrees
+        angles = initial_direction + np.linspace(-semiangle*180/np.pi/1000,semiangle*180/np.pi/1000,alpha_samples,endpoint=True)
+
+        self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
+        self.raytracefile = os.path.join(self.dirname,self.mircondbasename_noext+'_rays'+'.dat')
+        self.raytracebasename_noext = os.path.splitext(os.path.basename(self.raytracefile))[0] 
+        self.mircondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
+        cf = open(self.raytracefile,'w') 
+        cf.write(f'Title raytrace file for {mircondfilename}\n\n')
+        cf.write(f'\n{lens_type} lens\n')
+        cf.write(self.imgcondsubprop_fmt.format("Filename")+self.imgcondtext_fmt.format(self.basename_noext)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(lens_pos)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Potentials")+self.imgcondtext_fmt.format(potentials.format_noflag())+"\n")
+        cf.write('\n')
+        cf.write(self.imgcondsubprop_fmt.format("Time step factor")+self.mircondfloat_fmt.format(0.1)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Screen plane")+self.mircondfloat_fmt.format(screen_pos)+"\n")
+        relativity_str = 'on' if relativity else 'off'
+        cf.write(self.imgcondsubprop_fmt.format("Relativity")+self.imgcondtext_fmt.format(relativity_str)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Save rays")+self.imgcondtext_fmt.format('on')+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Save xyz")+self.imgcondtext_fmt.format('off')+"\n")
+        cf.write('\nInitial ray conditions\n')
+        rayfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=precision)
+        for x in x_positions:
+            for y in y_positions:
+                for alpha in angles:
+                    cf.write(self.check_len(rayfloat_fmt.format(x))+
+                             self.check_len(rayfloat_fmt.format(y))+
+                             self.check_len(rayfloat_fmt.format(source_pos))+
+                             self.check_len(rayfloat_fmt.format(energy))+
+                             self.check_len(rayfloat_fmt.format(alpha))+
+                             self.check_len(rayfloat_fmt.format(0))+ # azimuthal angle
+                             '\n')
+
+        if(potentials is not None):
+            pot_min = min(potentials.voltages)
+            pot_max = max(potentials.voltages)
+            pot_range = np.linspace(pot_min,pot_max,n_equipotentials,endpoint=True)
+            cf.write('\nElectrostatic Equipotentials\n')
+            for pot in pot_range:
+                cf.write(rayfloat_fmt.format(pot)+'\n')
+        cf.close()
+        cf = None
+
+
+    def write_mir_img_cond_file(self,mircondfilename,source_pos=90,source_shape='ROUND',source_size=200,intensity_dist='UNIFORM',ang_shape='ROUND',semiangle=10,ang_dist='UNIFORM',energy=200000,energy_width=1,energy_dist='Gaussian',lens_type='electrostatic',lens_pos=0,lens_scale=1,lens_excitation=None,potentials=None,ray_method="R",order=3,focus_mode="AUTO",img_pos=95,screen_pos=None,mir_screen_pos=None,save_trj=True,obj_pos=None,obj_semiangle=None,x_size=0.1,y_size=0.1,reverse_dir=True,turning_point=5,precision=6):
+        '''
+        Writes optical imaging conditions file for MIRROR. Must be run before
+        calc_properties_mirror(). 
+        
+        All parameters are specified in more detail starting on p. 55 of the 
+        IMAGE-GUI v3.1 manual. Note that parameters listed as optional below
+        with two asterisks (**) are technically optional but in general should
+        be specified as MIRROR may not successfully run with default inputs.
+        Note also that this is not a comprehensive list of all possible MIRROR
+        parameters, but rather a limited selection appropriate for the present
+        application.
+
+        Parameters:
+            mircondfilename : path
+                full filename to write imaging conditions file to.
+
+        Optional parameters:
+            source_pos : float
+                Source z position (mm). The "source" is the starting 
+                position of rays for auto-focusing. 
+                Default 0. **
+            source_shape : string
+                Shape of source. Options in MEBS are "SQUARE","ROUND",
+                "OBLONG" and "OVAL", but the latter two require separate 
+                x and y source size, which is not implemented here.
+                Default "ROUND".
+            source_size: float
+                Source size (microns). Not related to resolution; just the
+                starting size of the ray bundle.
+                Default 200.
+            intensity_dist : string
+                Shape of spatial intensity distribution. Options are "UNIFORM"
+                and "GAUSSIAN".
+                Default "Gaussian".
+            ang_shape : string
+                Angular shape of source. Options are "SQUARE", "ROUND", 
+                "OBLONG" and "OVAL", but the latter two require separate
+                x and y source size, which is not implemented here.
+                Default "ROUND".
+            semiangle : float
+                Semiangle (mrad) for emission from source.
+                Default 10.
+            ang_dist : string
+                Angular distribution of source. Options are "UNIFORM",
+                "GAUSSIAN" or "LAMBERTIAN". Default "UNIFORM".
+            energy : float
+                Beam kinetic energy (eV). Default 200000.
+            energy_width : float
+                Beam energy spread (eV). Default 1.
+            energy_dist : string
+                Energy distribution of source. Options are "UNIFORM", 
+                "GAUSSIAN", "MAXWELL-BOLTZMANN", or "SECONDARY". Default
+                "GAUSSIAN".
+            lens_type : string
+                Specifies type of lens. Multiple lenses to be implemented.
+                Options are "MAGNETIC" and "ELECTROSTATIC". Default
+                "ELECTROSTATIC".
+            lens_pos : float
+                Lens z position (mm). Default 10. **
+            lens_scale : float
+                Scale factor to be applied to spatial extent of lens. Default 1.
+            lens_excitation : string
+                Specifies excitation strength of magnetic round lens or
+                magnetic or electric multipole. Contains a floating point 
+                number and a flag. Units are A-turns for magnetic or volts for 
+                electric. Flag options are f for fixed, vn for variable, where
+                n is an integer grouping lenses varied together (e.g. v1)
+                during autofocusing, or d for dynamic. The purpose of the 
+                dynamic option is unclear. Default None for unused.
+            potentials : MirPotentials instance
+                The MirPotentials class is defined in the ElecLens class.
+                This class is used to sensibly store and format the string
+                used for specifying the potentials of several electrodes.
+                Default None for unused. **
+            ray_method : string
+                Specifies whether rays are computed cylindrically symmetrically
+                ("R") or in full x-y-z space ("XY"). Default "R".
+            order : integer
+                Maximum power for order of axial field functions. Default 3.
+            focus_mode : string
+                Specifies whether MIRROR does manual or auto-focusing. Default 
+                is "AUTO".
+            img_pos : float
+                Image plane z position (mm). Default 0. **
+            screen_pos : float
+                Screen plane z position (mm). End position of rays for auto-
+                focusing. Default None, copied from img_pos. **
+            mir_screen_pos : float
+                Mirror screen plane z position (mm). End position of DA rays
+                for aberration calculation. Default None, copied from 
+                screen_pos.
+            save_trj : bool
+                Saves trajectories file. Not documented in manual. Default True.
+            obj_pos : float
+                Mirror object z position (mm). Start position of DA rays for
+                aberration calculation. Default None, copied from source_pos. 
+            obj_semiangle : float
+                awaiting clarification. Default None, copied from semiangle.
+            x_size : float
+            y_size : float
+                Extent of object (mm) used to launch DA rays for aberration
+                calculation. Default 0.1
+            reverse_dir : bool
+                If True, beam will initially propagate in the negative z 
+                direction. Default False.
+            turning_point : float
+                Estimated turning point along z (mm). MEBS will not successfully
+                run if this is not within roughly +/-10mm of the turning point.
+                Default 50. **
+            precision : int
+                Number of decimal places to print floats with.
+        '''
+        if(obj_pos == None):
+            obj_pos = source_pos
+        if(screen_pos == None):
+            screen_pos = img_pos
+        if(mir_screen_pos == None):
+            mir_screen_pos = screen_pos
+        if(obj_semiangle == None):
+            obj_semiangle = semiangle
+        if(reverse_dir):
+            mir_energy = -energy
+            energy = -energy
+        else:
+            mir_energy = energy
+
+        self.mircondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
+        self.mircondfilename = mircondfilename
+        self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
+        cf = open(self.mircondfilename,'w') 
+        self.mir_cond_title = self.title+' Imaging Conditions for MIRROR'
+
+        cf.write(f"Title     {self.mir_cond_title:>70}\n\n")
+        cf.write("SOURCE\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(source_pos)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Shape")+self.imgcondtext_fmt.format(source_shape)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Size")+self.mircondfloat_fmt.format(source_size)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Intensity distribution")+self.imgcondtext_fmt.format(intensity_dist)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Angular shape")+self.imgcondtext_fmt.format(ang_shape)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Half angle")+self.mircondfloat_fmt.format(semiangle)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Angular distribution")+self.imgcondtext_fmt.format(ang_dist)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Beam energy")+self.mircondfloat_fmt.format(energy)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Energy width parameter")+self.mircondfloat_fmt.format(energy_width)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Energy distribution")+self.imgcondtext_fmt.format(energy_dist)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Beam current")+self.mircondfloat_fmt.format(1)+"\n")
+        cf.write("\nLENS\n")
+        cf.write(self.imgcondsubprop_fmt.format("File")+self.imgcondtext_fmt.format(self.fitname)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Type")+self.imgcondtext_fmt.format(lens_type)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(lens_pos)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Size")+self.mircondfloat_fmt.format(lens_scale)+"\n")
+        if(lens_excitation is not None): 
+            cf.write(self.imgcondsubprop_fmt.format("Excitation")+self.mircondfloat_fmt.format(lens_excitation)+"\n")
+        if(potentials is not None): 
+            cf.write(self.imgcondsubprop_fmt.format("Potentials")+self.imgcondtext_fmt.format(potentials.format())+"\n")
+        cf.write("\nGAUSSIAN IMAGE PLANE\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(img_pos)+"\n")
+        cf.write("\nSCREEN\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(screen_pos)+"\n")
+        cf.write("\nPARTICLES\n")
+        cf.write(self.imgcondsubprop_fmt.format("Type")+self.imgcondtext_fmt.format("Electrons")+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Charge")+self.imgcondint_fmt.format(1)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Mass")+self.imgcondint_fmt.format(1)+"\n")
+        cf.write("\nSIMULATION PARAMETERS\n")
+        cf.write(self.imgcondsubprop_fmt.format("Initial Conditions")+self.imgcondtext_fmt.format("Systematic")+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Particles/bunch")+self.imgcondint_fmt.format(1)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Bunches")+self.imgcondint_fmt.format(1)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Seed")+self.imgcondint_fmt.format(1)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Error bound per step")+self.mircondfloat_fmt.format(1e-12)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Paraxial Ray Method")+self.imgcondtext_fmt.format(ray_method)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Order")+self.imgcondint_fmt.format(order)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Coulomb interactions")+self.imgcondtext_fmt.format("off")+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Simulation method")+self.imgcondtext_fmt.format("direct")+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Tree code parameter")+self.imgcondint_fmt.format(1)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Focus mode")+self.imgcondtext_fmt.format(focus_mode)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Interactive")+self.imgcondtext_fmt.format("no")+"\n")
+        trjsavestr = 'yes' if save_trj else 'no'
+        cf.write(self.imgcondsubprop_fmt.format("Save trajectories")+self.imgcondtext_fmt.format(trjsavestr)+"\n")
+        cf.write("\nMIRROR OBJECT\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position (mm)")+self.mircondfloat_fmt.format(obj_pos)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Beam energy (eV)")+self.mircondfloat_fmt.format(mir_energy)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Alpha (mrad)")+self.mircondfloat_fmt.format(obj_semiangle)+"\n")
+        # alpha values and azimuth values are unused in MIRROR
+        cf.write(self.imgcondsubprop_fmt.format("Alpha values")+self.imgcondint_fmt.format(2)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Azimuth values")+self.imgcondint_fmt.format(16)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("X Size (mm)")+self.mircondfloat_fmt.format(x_size)+"\n")
+        cf.write(self.imgcondsubprop_fmt.format("Y Size (mm)")+self.mircondfloat_fmt.format(y_size)+"\n")
+        cf.write("\nMIRROR SCREEN\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position (mm)")+self.mircondfloat_fmt.format(mir_screen_pos)+"\n")
+        cf.write("\nTURNING POINTS GUIDELINE\n")
+        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(turning_point)+"\n")
+        cf.close()
+        cf = None
+
     def write_opt_img_cond_file(self,imgcondfilename,n_intervals=200,energy=200000,energy_width=1,aperture_angle=30,obj_pos=0,img_pos=6,n_intermediate_images=0,lens_pos=0,lens_strength=1,lens_scale=1,precision=6,auto_focus=1):
         '''
-        Writes optical imaging conditions file. Must be run before calc_properties_optics().
+        Writes optical imaging conditions file for OPTICS. Must be run before 
+        calc_properties_optics().
 
         Parameters:
             imgcondfilename : path
@@ -694,6 +1011,47 @@ class OpticalElement:
         pf.close()
         pf = None
 
+    # this is bound to break when the .res file changes 
+    # in ways I haven't foreseen. fix as needed.
+    def read_mir_optical_properties(self):
+        '''
+        Run after calc_properties_mirror() to read in the computed optical 
+        properties.
+
+        No arguments.
+        '''
+        pf = open(os.path.join(self.dirname,self.mircondbasename_noext+'.res'),'r')
+        properties_lines = pf.readlines()
+        # see end of this file for snippets of the .res file 
+        # that are relevant to this parameter extraction
+        for i,line in enumerate(properties_lines):
+            if 'Results of 1st order Properties' in line:
+                linenum_mag = i+6
+                linenum_rot = i+7
+            if 'Optical Element Settings After Focusing' in line:
+                # assumes single electrostatic lens
+                linenum_v = i+3
+            if 'Turning point z(mm)' in line:
+                linenum_turning = i
+            if 'Results of 3rd order Calculation' in line:
+                linenum_c3 = i+3
+            if 'Chromatic aberration coefficients (2nd rank)' in line:
+                linenum_cc = i+1
+        self.mag = float(properties_lines[linenum_mag].split()[2])
+        self.rot = float(properties_lines[linenum_rot].split()[4]) # deg
+        self.lens_curr = None # not used 
+        self.v = []
+        j = 0
+        while('Potential V' in properties_lines[linenum_v+j]):
+            self.v.append(float(properties_lines[linenum_v+j].split()[3]))
+            j+=1
+        self.f = None
+        self.f_real = None
+        self.c3 = float(properties_lines[linenum_c3].split()[0]) # m to mm
+        self.cc = float(properties_lines[linenum_cc].split()[0]) # m to mm
+        pf.close()
+        pf = None
+
 
 class StrongMagLens(OpticalElement):
     '''
@@ -750,6 +1108,7 @@ class StrongMagLens(OpticalElement):
     
     
     def read_other_blocks(self,line_num):
+        self.potname = self.basename_noext+'.axb' # name of potential file
         line_num = self.read_mag_mat(line_num)
         line_num = self.read_coil(line_num)
         self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
@@ -1011,6 +1370,26 @@ class ElecLens(OpticalElement):
     Class for electrostatic lenses and mirrors.
     
     '''
+
+    class MirPotentials:
+        def __init__(self,parent,voltages,flags,voltage_precision=6):
+            self.parent = parent
+            self.voltages = voltages
+            self.flags = flags
+            self.voltage_fmt = self.parent.rfloat_fmt.substitute(imgcondcolwidth=parent.colwidth,precision=voltage_precision)
+            self.string = ''
+            if(len(flags) != len(voltages)):
+                raise ValueError('Lengths of voltage and flag arrays not equal.')
+
+        def format(self):
+            if(self.string == ''): # if not set yet, set
+                for i in range(len(self.voltages)):
+                    self.string += self.parent.check_len(self.voltage_fmt.format(self.voltages[i]) + self.flags[i])
+            return self.string
+
+        def format_noflag(self):
+            return self.parent.check_len_multi((self.parent.int_fmt*len(self.voltages)).format(*self.voltages))
+
     def initialize_lists(self):
         # N two-element arrays for the r and z indices of 
         # N different quads for electrodes
@@ -1035,6 +1414,7 @@ class ElecLens(OpticalElement):
     
     
     def read_other_blocks(self,line_num):
+        self.potname = self.basename_noext+'.axv' # name of potential file
         line_num = self.read_electrodes(line_num)
         line_num = self.read_dielectrics(line_num)
         self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
@@ -1046,59 +1426,82 @@ class ElecLens(OpticalElement):
             indices = np.fromstring(self.infile[line_num],dtype=int,count=4,sep=' ')
             self.electrode_z_indices.append(indices[:2])
             self.electrode_r_indices.append(indices[2:4])
-            self.electrode_unit_potentials.append(np.fromstring(self.infile[line_num],dtype=int,sep=' ')[4:])
+            self.electrode_unit_potentials.append(np.fromstring(self.infile[line_num],dtype=float,sep=' ')[4:])
             line_num+=1
         return line_num+1 # start of next block
     
     def read_dielectrics(self,line_num):
         return self.read_quad(line_num,self.dielectric_z_indices,self.dielectric_r_indices,self.dielectric_constants,property_dtype=float)
+
+    def read_boundaries(self,line_num):
+        lines = []
+        while(self.infile[line_num].isspace() != True):
+            lines.append(np.fromstring(self.infile[line_num],dtype=float,sep=' '))
+            line_num+=1
+        lines = np.array(lines)
+        self.boundary_indices = lines[:,0].astype(int)
+        self.boundary_unit_potentials = lines[:,1:]
+        section_starts = [] # list of numpy indices that denote the start of a section
+        prev_index = 1 # counter
+        for n,index in enumerate(self.boundary_indices):
+            if(index < prev_index):
+                section_starts.append(n)
+            prev_index = index
+        # turn these two numpy arrays into a list containing each section as a numpy array
+        self.boundary_indices = np.split(self.boundary_indices,section_starts)
+        self.boundary_unit_potentials = np.split(self.boundary_unit_potentials,section_starts)
     
     def write_other_blocks(self,f):
-        # FIX
-        self.write_mag_mat(f)
-        self.write_coil(f)
-        self.write_hyst(f) # leaves one blank line at end of section
-        f.write("\n\n") # three blank lines for a strong magnetic lens
+        self.write_electrodes(f)
+        self.write_dielectrics(f)
+        self.write_boundaries(f) # leaves one blank line at end of section
+        f.write("\n") # two total blank lines for an electrostatic lens
     
-    def write_mag_mat(self,f):
-        self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_curve_indices,self.int_fmt)
-    
-    def write_coil(self,f):
-        self.write_quad(f,self.coil_z_indices,self.coil_r_indices,self.coil_curr,self.curr_fmt)
-
-    def write_hyst(self,f):
-        M = len(self.H_arrays)
-        for m in range(M):
-            for k in range(len(self.H_arrays[m])):
-                f.write(self.check_len(self.field_fmt.format(self.H_arrays[m][k])))
-                f.write(self.check_len(self.field_fmt.format(self.B_arrays[m][k])))
-                f.write("\n")
-            f.write("\n")
-            
-    def plot_quads(self):
-        self.plot_mag_mat()
-        self.plot_coil()
-    
-    def plot_mag_mat(self):
-        N = len(self.mag_mat_r_indices)
+    def write_electrodes(self,f):
+        N = len(self.electrode_z_indices)
+        M = len(self.electrode_unit_potentials[0])
         for n in range(N):
-            self.plot_quad(self.mag_mat_z_indices[n],self.mag_mat_r_indices[n],color='k')
+            f.write(self.check_len_multi((self.int_fmt*2).format(*self.electrode_z_indices[n])))
+            f.write(self.check_len_multi((self.int_fmt*2).format(*self.electrode_r_indices[n])))
+            f.write(self.check_len_multi((self.voltage_fmt*M).format(*self.electrode_unit_potentials[n])))
+            f.write("\n")
+        f.write("\n")
+    
+    def write_dielectrics(self,f):
+        self.write_quad(f,self.dielectric_z_indices,self.dielectric_r_indices,self.dielectric_constants,self.rel_perm_fmt)
+    def write_boundaries(self,f):
+        M = len(self.electrode_unit_potentials[0])
+        for p in range(len(self.boundary_indices)): # iterate sections
+            for q in range(len(self.boundary_indices[p])): # iterate indices in sections
+                f.write(self.check_len(self.int_fmt.format(self.boundary_indices[p][q])))
+                f.write(self.check_len_multi((self.voltage_fmt*M).format(*self.boundary_unit_potentials[p][q])))
+        f.write("\n")
+        # do this
+
+    def plot_quads(self):
+        self.plot_electrodes()
+        self.plot_dielectrics()
+    
+    def plot_electrodes(self):
+        N = len(self.electrode_r_indices)
+        for n in range(N):
+            self.plot_quad(self.electrode_z_indices[n],self.electrode_r_indices[n],color='k')
             
-    def plot_coil(self):
-        L = len(self.coil_r_indices)
+    def plot_dielectrics(self):
+        L = len(self.dielectric_r_indices)
         for l in range(L):
-            self.plot_quad(self.coil_z_indices[l],self.coil_r_indices[l],color='r')
+            self.plot_quad(self.dielectric_z_indices[l],self.dielectric_r_indices[l],color='r')
 
     def calc_field(self):
         '''
-        Calls somlenss.exe to calculate magnetic field for this lens.
+        Calls soelens.exe to calculate electric field for this lens.
 
         No arguments.
         '''
         with cd(self.dirname):
             outputmode = subprocess.PIPE if self.verbose else None
             try:
-                output = subprocess.run(["somlenss.exe",self.basename_noext],stdout=outputmode,timeout=self.timeout).stdout
+                output = subprocess.run(["soelens.exe",self.basename_noext],stdout=outputmode,timeout=self.timeout).stdout
                 print(output.decode('utf-8')) if self.verbose else None
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')
