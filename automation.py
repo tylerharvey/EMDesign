@@ -5,6 +5,7 @@ User methods:
     OptimizeShapes (built as a class for obscure reasons)
 '''
 import sys,os,subprocess,shutil,datetime
+from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
@@ -14,7 +15,11 @@ from calculate_optical_properties import calc_properties_optics
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 
-def calculate_c3(oe,curr_bound=None):
+class TimeoutCheck:
+    def __init__(self):
+        self.timed_out = False
+
+def calculate_c3(oe,curr_bound=None,t=TimeoutCheck()):
     '''
     Workhorse function for automation. Writes optical element file, then 
     calculates field, then calculates optical properties, and then reads them.
@@ -26,7 +31,11 @@ def calculate_c3(oe,curr_bound=None):
     
     oe.write(oe.filename)
     oe.calc_field()
-    calc_properties_optics(oe)
+    try:
+        calc_properties_optics(oe)
+    except TimeoutExpired: # if optics has failed over and over again, bail
+        t.timed_out = True
+        return 10000
     try: 
         oe.read_optical_properties()
     except UnboundLocalError: # if optics fails, return garbage
@@ -110,7 +119,7 @@ class OptimizeShapes:
         self.change_n_quads_and_calculate(result.x)
 
     def change_n_quads_and_calculate(self,shape):
-        return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts)
+        return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
 def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3):
@@ -174,9 +183,9 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
         options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),scale=simplex_scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,True,np.array(bounds),curr_bound),method=method,options=options)
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options)
     else:
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts),bounds=bounds,method=method,options=options)
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,TimeoutCheck()),bounds=bounds,method=method,options=options)
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,n_edge_pts)
@@ -294,7 +303,9 @@ def change_imgplane_and_calculate(imgplane,oe):
     print(f"f: {oe.f}, C3: {oe.c3}")
     return np.abs(oe.c3)
 
-def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None,curr_bound=None):
+def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None):
+    if(t.timed_out):
+        return 10000
     # z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
     # for quad in quads:
     #     oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
@@ -307,7 +318,7 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,enforce_b
     #     return 10000
     if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=enforce_bounds,bounds=bounds)):
         return 10000
-    return calculate_c3(oe,curr_bound)
+    return calculate_c3(oe,curr_bound,t)
 
 def do_quads_intersect_anything(oe,quads,other_quads):
     for i,quad in enumerate(quads):

@@ -6,9 +6,49 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from optical_element_io import cd
+import asyncio
+import nest_asyncio
+nest_asyncio.apply()
+
+async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000):
+    '''
+    Function for handling simple subprocess executions.
+
+    Parameters:
+        command_and_args : list
+            list of command and all arguments as strings, e.g. ['ls','-l'].
+
+    Optional parameters:
+        i : int
+            counter for maximum attempts if program fails. Starts at 0.
+    '''
+
+    proc = await asyncio.create_subprocess_exec(*command_and_args,
+                                    stdout=asyncio.subprocess.PIPE,
+                                    stderr=asyncio.subprocess.PIPE)
+
+    try:
+        stdout,stderr = await asyncio.wait_for(proc.communicate(),timeout=timeout)
+    except asyncio.TimeoutError:
+        print(f'Program {command_and_args[0]} timed out. Rerunning.')
+        i+=1
+        if(i > max_attempts):
+            raise TimeoutExpired
+        else:
+            await run_async(command_and_args,i+1,timeout=timeout)
+
+    if(stdout):
+        print(f'{stdout.decode()}')
+    # MEBS doesn't generally use STDERR
+
+    return -1
+
+async def run_herm_then_mirror(oe,nterms,symstring):
+        await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout)
+        await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout)
 
 # takes optical_element object (oe) as argument
-def calc_properties_mirror(oe,nterms=50):
+def calc_properties_mirror(oe,nterms=50,i=0,max_attempts=3,mirror=True,curved_mirror=False):
     '''
     untested function for calculating optical properties of electrostatic
     mirrors with MIRROR. 
@@ -21,19 +61,24 @@ def calc_properties_mirror(oe,nterms=50):
         nterms : int
             number of terms to use in hermite series to approximate field.
             default 50
+        max_attempts : int
+            maximum number of times to rerun after timeout. Default 3.
+        mirror : bool
+            Indicates whether optical element includes a mirror. Default True.
+        curved_mirror : bool
+            Indicates whether optical element includes a curved mirror.
+            Default False.
     '''
-    oe.fitname = oe.basename_noext+'.fit'
     with cd(oe.dirname):
         outputmode = subprocess.PIPE if oe.verbose else None
-        try:
-            output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,nterms,n,n],stdout=outputmode,timeout=oe.timeout).stdout
-            print(output.decode('utf-8')) if oe.verbose else 0
-        except TimeoutExpired:
-            print('Optical properties calculation failed. Rerunning.')
-            calc_properties_mirror(oe,nterms)
+        symstring = 'AN' if mirror else 'NN'
+        asyncio.run(run_herm_then_mirror(oe,nterms,symstring))
+        # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
+        # print(output.decode('utf-8')) if oe.verbose else 0
+        # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
+        # print(output.decode('utf-8')) if oe.verbose else 0
 
-
-def calc_properties_optics(oe):
+def calc_properties_optics(oe,i=0,max_attempts=3):
     '''
     function for calculating optical properties of electric or magnetic lenses
     with OPTICS ABER5. 
@@ -51,8 +96,12 @@ def calc_properties_optics(oe):
             output = subprocess.run(['OPTICS.exe','ABER',oe.imgcondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
             print(output.decode('utf-8')) if oe.verbose else 0
         except TimeoutExpired:
+            i+=1
             print('Optical properties calculation failed. Rerunning.')
-            calc_properties_optics(oe)
+            if(i > max_attempts):
+                raise TimeoutExpired
+            else:
+                calc_properties_optics(oe,i)
         except AttributeError:
             print('OpticalElement.imagecondbasename_noext not set. Run '
                   'OpticalElement.write_opt_img_cond_file() first.') 
