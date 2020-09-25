@@ -10,7 +10,7 @@ import asyncio
 import nest_asyncio
 nest_asyncio.apply()
 
-async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000):
+async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=None,verbose=True):
     '''
     Function for handling simple subprocess executions.
 
@@ -23,9 +23,16 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000):
             counter for maximum attempts if program fails. Starts at 0.
     '''
 
+    outputmode = asyncio.subprocess.PIPE if verbose else None
     proc = await asyncio.create_subprocess_exec(*command_and_args,
-                                    stdout=asyncio.subprocess.PIPE,
-                                    stderr=asyncio.subprocess.PIPE)
+                                    stdout=outputmode,
+                                    stderr=asyncio.subprocess.PIPE,
+                                    stdin=asyncio.subprocess.PIPE)
+
+    if(user_input):
+        stdin = user_input.encode()
+        stdout,stderr = await asyncio.wait_for(proc.communicate(stdin),timeout=timeout)
+
 
     try:
         stdout,stderr = await asyncio.wait_for(proc.communicate(),timeout=timeout)
@@ -35,23 +42,30 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000):
         if(i > max_attempts):
             raise TimeoutExpired
         else:
-            await run_async(command_and_args,i+1,timeout=timeout)
+            await run_async(command_and_args,i+1,timeout=timeout,user_input=user_input)
 
     if(stdout):
         print(f'{stdout.decode()}')
     # MEBS doesn't generally use STDERR
 
-    return -1
+async def run_herm_then_mirror(oe,nterms,mirror,curved_mirror):
+    symstring = 'AN' if mirror else 'NN'
+    if(mirror):
+        user_input = 'Y\n' if curved_mirror else 'N\n'
+    else:
+        user_input = None
+        
+    await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
+                                                         user_input=user_input,verbose=oe.verbose)
 
-async def run_herm_then_mirror(oe,nterms,symstring):
-        await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout)
-        await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout)
+    await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout,verbose=oe.verbose)
 
 # takes optical_element object (oe) as argument
 def calc_properties_mirror(oe,nterms=50,i=0,max_attempts=3,mirror=True,curved_mirror=False):
     '''
-    untested function for calculating optical properties of electrostatic
-    mirrors with MIRROR. 
+    Function for calculating optical properties of electrostatic
+    mirrors with MIRROR. Implemented for only a single optical
+    element at the moment.
 
     Parameters:
         oe : OpticalElement object 
@@ -70,9 +84,7 @@ def calc_properties_mirror(oe,nterms=50,i=0,max_attempts=3,mirror=True,curved_mi
             Default False.
     '''
     with cd(oe.dirname):
-        outputmode = subprocess.PIPE if oe.verbose else None
-        symstring = 'AN' if mirror else 'NN'
-        asyncio.run(run_herm_then_mirror(oe,nterms,symstring))
+        asyncio.run(run_herm_then_mirror(oe,nterms,mirror,curved_mirror))
         # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
         # print(output.decode('utf-8')) if oe.verbose else 0
         # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
