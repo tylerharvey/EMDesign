@@ -192,6 +192,8 @@ class OpticalElement:
         '''
 
         self.so=so
+        self.mirror = False
+        self.curved_mirror = False
         self.infile = []
         self.initialize_lists()
         self.verbose = verbose
@@ -803,6 +805,7 @@ class OpticalElement:
             precision : int
                 Number of decimal places to print floats with.
         '''
+        oe.program = 'mirror'
         if(obj_pos == None):
             obj_pos = source_pos
         if(screen_pos == None):
@@ -936,6 +939,7 @@ class OpticalElement:
                 properties if the lens strength is high enough to create 
                 multiple image planes. 
         '''
+        oe.program = 'optics'
         self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
         self.lensfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=precision)
         self.imgcondfilename = imgcondfilename
@@ -1389,6 +1393,19 @@ class ElecLens(OpticalElement):
 
         def format_noflag(self):
             return self.parent.check_len_multi((self.parent.int_fmt*len(self.voltages)).format(*self.voltages))
+
+    def lens_type(self,mirror,curved_mirror):
+        '''
+        Run after initializing ElecLens to classify lens.
+
+        Parameters:
+            mirror : bool
+                Indicates whether optical element is a mirror.
+            curved_mirror : bool
+                Indicates whether mirror is curved.
+        '''
+        self.mirror = mirror
+        self.curved_mirror = curved_mirror
 
     def initialize_lists(self):
         # N two-element arrays for the r and z indices of 

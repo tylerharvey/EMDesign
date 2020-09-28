@@ -54,10 +54,10 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
         print(f'{stdout.decode()}')
     # MEBS doesn't generally use STDERR
 
-async def run_herm_then_mirror(oe,nterms,mirror,curved_mirror):
-    symstring = 'AN' if mirror else 'NN'
-    if(mirror):
-        user_input = 'Y\n' if curved_mirror else 'N\n'
+async def run_herm_then_mirror(oe,nterms):
+    symstring = 'AN' if oe.mirror else 'NN'
+    if(oe.mirror):
+        user_input = 'Y\n' if oe.curved_mirror else 'N\n'
     else:
         user_input = None
         
@@ -67,7 +67,7 @@ async def run_herm_then_mirror(oe,nterms,mirror,curved_mirror):
     await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout,verbose=oe.verbose)
 
 # takes optical_element object (oe) as argument
-def calc_properties_mirror(oe,nterms=50,i=0,max_attempts=3,mirror=True,curved_mirror=False):
+def calc_properties_mirror(oe,nterms=50):
     '''
     Function for calculating optical properties of electrostatic
     mirrors with MIRROR. Implemented for only a single optical
@@ -88,7 +88,7 @@ def calc_properties_mirror(oe,nterms=50,i=0,max_attempts=3,mirror=True,curved_mi
             Default False.
     '''
     with cd(oe.dirname):
-        asyncio.run(run_herm_then_mirror(oe,nterms,mirror,curved_mirror))
+        asyncio.run(run_herm_then_mirror(oe,nterms))
         # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
         # print(output.decode('utf-8')) if oe.verbose else 0
         # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout

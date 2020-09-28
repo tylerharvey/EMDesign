@@ -32,7 +32,10 @@ def calculate_c3(oe,curr_bound=None,t=TimeoutCheck()):
     oe.write(oe.filename)
     oe.calc_field()
     try:
-        calc_properties_optics(oe)
+        if(oe.program == 'optics'):
+            calc_properties_optics(oe)
+        if(oe.program == 'mirror'):
+            calc_properties_mirror(oe)
     except TimeoutExpired: # if optics has failed over and over again, bail
         t.timed_out = True
         return 10000
