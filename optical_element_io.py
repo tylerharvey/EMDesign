@@ -805,7 +805,7 @@ class OpticalElement:
             precision : int
                 Number of decimal places to print floats with.
         '''
-        oe.program = 'mirror'
+        self.program = 'mirror'
         if(obj_pos == None):
             obj_pos = source_pos
         if(screen_pos == None):
@@ -939,7 +939,7 @@ class OpticalElement:
                 properties if the lens strength is high enough to create 
                 multiple image planes. 
         '''
-        oe.program = 'optics'
+        self.program = 'optics'
         self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth,precision=precision)
         self.lensfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=precision)
         self.imgcondfilename = imgcondfilename
