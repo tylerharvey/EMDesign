@@ -301,7 +301,6 @@ class OpticalElement:
         self.filename = outfilename
         self.basename_noext = os.path.splitext(os.path.basename(outfilename))[0]
         self.basename = os.path.basename(outfilename)
-        self.potname = self.basename_noext+'.axb'
         self.filename_noext = os.path.splitext(outfilename)[0]
         self.dirname = os.path.dirname(outfilename)
         
