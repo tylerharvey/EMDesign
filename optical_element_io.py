@@ -1492,6 +1492,7 @@ class ElecLens(OpticalElement):
             for q in range(len(self.boundary_indices[p])): # iterate indices in sections
                 f.write(self.check_len(self.int_fmt.format(self.boundary_indices[p][q])))
                 f.write(self.check_len_multi((self.voltage_fmt*M).format(*self.boundary_unit_potentials[p][q])))
+                f.write("\n")
         f.write("\n")
         # do this
 
