@@ -125,12 +125,28 @@ class OpticalElement:
             image rotation in deg (set by read_optical_properties)
         lens_curr : float
             current in first magnetic lens in A-turns (set by read_optical ...)
+        V : list
+            list of voltage applied to each electrode after autofocus 
+            (set by read_mir_optical...).
+        mirror : bool
+            determines whether HERM1 will be run with 'AN' symmetry. starts as
+            False (i.e. 'NN' symmetry) and set by mirror_type().
+        curved_mirror : bool
+            determines whether HERM! will be run with curved mirror correction.
+            starts as False and set by mirror_type().
+        freeze_xy_plane : bool
+            determines whether the z coordinate for points initially along z=0
+            is allowed to move in optimization. starts as True. set to False
+            by mirror_type() if curved_mirror = True. may need to be manually
+            set to True for some optical elements.
 
     User methods:
         plot_mesh_coarse
         plot_field
         write_opt_img_cond_file
+        write_mir_img_cond_file
         read_optical_properties
+        read_mir_optical_properties
         calc_rays
         add_curvature (converts optical element .dat file for FOFEM use)
 
@@ -194,6 +210,7 @@ class OpticalElement:
         self.so=so
         self.mirror = False
         self.curved_mirror = False
+        self.freeze_xy_plane = False
         self.infile = []
         self.initialize_lists()
         self.verbose = verbose
@@ -1376,12 +1393,34 @@ class ElecLens(OpticalElement):
     '''
     Class for electrostatic lenses and mirrors.
     
+    No arguments.
+    
+    Has attribute MirPotentials, which is a necessary argument for 
+    write_mir_optical_properties.
+
+    User methods:
+        mirror_type
+        calc_field
     '''
 
     lens_type = 'electrostatic'
 
     class MirPotentials:
         def __init__(self,parent,voltages,flags,voltage_precision=6):
+            '''
+            Parameters:
+                parent : OpticalElement object
+                    Used to pass several OpticalElement settings.
+                voltages : list
+                    list of voltages to apply to electrodes
+                flags : list
+                    list of string-type flags that indicate electrode 
+                    variability for autofocusing. options are 'f', 'v1', 'v2'
+                    and so on. 
+            Optional Parameters:
+                voltage_precision : int
+                    precision to use to format voltages. Default 6.
+            '''
             self.parent = parent
             self.voltages = voltages
             self.flags = flags
@@ -1413,6 +1452,8 @@ class ElecLens(OpticalElement):
         '''
         self.mirror = mirror
         self.curved_mirror = curved_mirror
+        if(self.curved_mirror):
+            self.freeze_xy_plane = False
 
     def initialize_lists(self):
         # N two-element arrays for the r and z indices of 

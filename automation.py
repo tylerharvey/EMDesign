@@ -266,10 +266,11 @@ def define_edges(oe,z_indices_list,r_indices_list,remove_duplicates_and_mirrored
     all_edge_points_list = []
     all_mirrored_edge_points_list = []
     for i in range(n_quads):
-        quads.append(Quad(oe,z_indices_list[i],r_indices_list[i],separate_mirrored=remove_duplicates_and_mirrored))
+        quads.append(Quad(oe,z_indices_list[i],r_indices_list[i],separate_mirrored=(remove_duplicates_and_mirrored and oe.freeze_xy_plane)))
         if(remove_duplicates_and_mirrored):
             quads[-1].delete_overlaps(quads[-1].edge_points_list,all_edge_points_list)
-            quads[-1].delete_overlaps(quads[-1].mirrored_edge_points_list,all_mirrored_edge_points_list)
+            if(oe.freeze_xy_plane):
+                quads[-1].delete_overlaps(quads[-1].mirrored_edge_points_list,all_mirrored_edge_points_list)
         quads[-1].count()
         all_edge_points_list += quads[-1].edge_points_list
         all_mirrored_edge_points_list += quads[-1].mirrored_edge_points_list
