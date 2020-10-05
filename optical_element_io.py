@@ -1045,10 +1045,10 @@ class OpticalElement:
         self.mag = float(properties_lines[linenum_mag].split()[2])
         self.rot = float(properties_lines[linenum_rot].split()[4]) # deg
         self.lens_curr = None # not used 
-        self.v = []
+        self.V = []
         j = 0
         while('Potential V' in properties_lines[linenum_v+j]):
-            self.v.append(float(properties_lines[linenum_v+j].split()[3]))
+            self.V.append(float(properties_lines[linenum_v+j].split()[3]))
             j+=1
         self.f = None
         self.f_real = None
@@ -1089,6 +1089,8 @@ class StrongMagLens(OpticalElement):
         plot_hyst
         calc_field
     '''
+
+    lens_type = 'magnetic'
 
     def initialize_lists(self):
         # N two-element arrays for the r and z indices of 
@@ -1376,6 +1378,8 @@ class ElecLens(OpticalElement):
     
     '''
 
+    lens_type = 'electrostatic'
+
     class MirPotentials:
         def __init__(self,parent,voltages,flags,voltage_precision=6):
             self.parent = parent
@@ -1395,15 +1399,17 @@ class ElecLens(OpticalElement):
         def format_noflag(self):
             return self.parent.check_len_multi((self.parent.int_fmt*len(self.voltages)).format(*self.voltages))
 
-    def lens_type(self,mirror,curved_mirror):
+    def mirror_type(self,mirror,curved_mirror):
         '''
         Run after initializing ElecLens to classify lens.
 
         Parameters:
             mirror : bool
                 Indicates whether optical element is a mirror.
+                Starts as False (initialized in __init__).
             curved_mirror : bool
                 Indicates whether mirror is curved.
+                Starts as False (initialized in __init__).
         '''
         self.mirror = mirror
         self.curved_mirror = curved_mirror

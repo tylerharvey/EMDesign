@@ -125,7 +125,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3):
+def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3,breakdown_field=10e3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -171,10 +171,13 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
         curr_bound : float
             bound for maximum current desnity in first magnetic lens. 
             default 3 A/mm^2 current density limit
+        breakdown_field : float
+            field at which vacuum breakdown is possible, in V/mm.
+            Default 10,000 V/mmm.
     '''
     oe.verbose=False
-    quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
-    other_quads,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
+    quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list,electrode_quads)
+    other_quads,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False,other_electrode_quads)
     n_edge_pts = len(all_edge_points_list)
     n_mirrored_edge_pts = len(all_mirrored_edge_points_list)
     edge_points = index_array_from_list(all_edge_points_list)
@@ -183,10 +186,13 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     bounds = n_edge_pts*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
-        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),scale=simplex_scale)
+        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options)
+        if(oe.lens_type == 'magnetic'):
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options)
+        elif(oe.lens_type == 'electrostatic'):
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options)
     else:
         result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,n_edge_pts,TimeoutCheck()),bounds=bounds,method=method,options=options)
     print('Optimization complete with success flag {}'.format(result.success))
@@ -214,6 +220,16 @@ class Quad:
     '''
 
     def __init__(self,oe,z_indices,r_indices,separate_mirrored=True):
+        try:  # works if lens is electric
+            if(self.z_indices in oe.electrode_z_indices):
+                self.electrode = True
+                self.electrode_index = oe.electrode_z_indices.index(self.z_indices)
+            else:
+                self.electrode = False
+                self.electrode_index = None
+        except NameError: # oe.electrode_z_indices doesn't exist because lens isn't electric
+            self.electrode = False
+            self.electrode_index = None
         self.edge_points_list = oe.retrieve_single_quad_edge_points(z_indices,r_indices)
         self.original_edge_points_list = self.edge_points_list.copy()
         if(separate_mirrored):
@@ -260,7 +276,7 @@ def define_edges(oe,z_indices_list,r_indices_list,remove_duplicates_and_mirrored
         quads[-1].make_index_arrays()
     return quads,all_edge_points_list,all_mirrored_edge_points_list
 
-def generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=None,scale=5):
+def generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=None,breakdown_field=None,scale=5):
     rng = np.random.default_rng()
     N = len(initial_shape)
     simplex = np.zeros((N+1,N),dtype=float)
@@ -268,7 +284,8 @@ def generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enfor
         simplex[i] = rng.normal(initial_shape,scale,N)
         # keep trying until simplex point is valid
         # inefficient but simple
-        while(change_n_quads_and_check(simplex[i],oe,quads,other_quads,n_edge_pts,enforce_bounds,bounds)):
+        while(change_n_quads_and_check(simplex[i],oe,quads,other_quads,
+              n_edge_pts,enforce_bounds,bounds,breakdown_field)):
             simplex[i] = rng.normal(initial_shape,scale,N)
     # save result
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext),simplex)
@@ -276,7 +293,8 @@ def generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enfor
     change_n_quads_and_check(initial_shape,oe,quads,other_quads,n_edge_pts)
     return simplex
 
-def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,bounds=None):
+def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=False,
+                             bounds=None,breakdown_field=None):
     z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
     for quad in quads:
         oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
@@ -286,6 +304,8 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bound
         if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
             return True
     if(does_coarse_mesh_intersect(oe) or does_fine_mesh_intersect_coarse(oe)):
+        return True
+    if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,quads,other_quads)):
         return True
     # if(do_quads_intersect_anything(oe,quads,other_quads)):
     #     return True
@@ -306,7 +326,7 @@ def change_imgplane_and_calculate(imgplane,oe):
     print(f"f: {oe.f}, C3: {oe.c3}")
     return np.abs(oe.c3)
 
-def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None):
+def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None,breakdown_field=None):
     if(t.timed_out):
         return 10000
     # z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
@@ -319,9 +339,31 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,t=Timeout
     #         return 10000
     # if(do_quads_intersect_anything(oe,quads,other_quads)):
     #     return 10000
-    if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=enforce_bounds,bounds=bounds)):
+    if(change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=enforce_bounds,bounds=bounds,breakdown_field=breakdown_field)):
         return 10000
     return calculate_c3(oe,curr_bound,t)
+
+def are_electrodes_too_close(oe,breakdown_field,quads,other_quads):
+    for i,quad in enumerate(quads):
+        if(quad.electrode):
+            for other_quad in quads[i:]: # also checks self-intersection
+                if(other_quad.electrode):
+                    if(max_field(quad,other_quad,oe) > breakdown_field):
+                        return True
+            for other_quad in other_quads:
+                if(other_quad.electrode):
+                    if(max_field(quad,other_quad,oe) > breakdown_field):
+                        return True
+
+def max_field(quad,other_quad,oe):
+    delta_V = np.abs(oe.V[quad.electrode_index] - oe.V[other_quad.electrode_index])
+    return delta_V/min_distance(quad,other_quad,oe)
+
+def min_distance(quad,other_quad,oe):
+    delta_z = oe.z[quad.edge_points] - oe.z[other_quad.edge_points]
+    delta_r = oe.r[quad.edge_points] - oe.r[other_quad.edge_points]
+    distance = np.linalg.norm([delta_z,delta_r],axis=0)
+    return np.min(distance)
 
 def do_quads_intersect_anything(oe,quads,other_quads):
     for i,quad in enumerate(quads):
