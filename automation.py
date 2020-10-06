@@ -192,7 +192,7 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
     Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
     initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.r[edge_points],oe.r[mirrored_edge_points])).tolist()
     bounds = (n_edge_pts+n_Rboundary_edge_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
-    edge_pts_splitlist = [n_edge_pts,n_edge_pts+Rboundary_edge_pts,2*n_edge_pts+Rboundary_edge_pts]
+    edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts]
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
         options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale)
