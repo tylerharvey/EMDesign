@@ -345,8 +345,9 @@ def find_mirrored_edge_points(oe,edge_points_list):
     return mirrored_edge_points_list,edge_points_list
 
 def find_Rboundary_edge_points(oe,edge_points_list):
-    Rboundary_edge_points_list = [point for point in edge_points_list if point[1] == oe.r_indices.max()]
-    edge_points_list = [point for point in edge_points_list if point[1] != oe.r_indices.max()]
+    rmax_np_index = np.argmax(oe.r[:,0])
+    Rboundary_edge_points_list = [point for point in edge_points_list if point[0] == rmax_np_index]
+    edge_points_list = [point for point in edge_points_list if point[0] != rmax_np_index]
     return Rboundary_edge_points_list,edge_points_list
 
 def change_imgplane_and_calculate(imgplane,oe):
