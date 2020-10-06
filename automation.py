@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from optical_element_io import cd,index_array_from_list,Point
-from calculate_optical_properties import calc_properties_optics
+from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 
@@ -40,7 +40,10 @@ def calculate_c3(oe,curr_bound=None,t=TimeoutCheck()):
         t.timed_out = True
         return 10000
     try: 
-        oe.read_optical_properties()
+        if(oe.program == 'optics'):
+            oe.read_optical_properties()
+        if(oe.program == 'mirror'):
+            oe.read_mir_optical_properties()
     except UnboundLocalError: # if optics fails, return garbage
         return 100
     print(f"f: {oe.f}, C3: {oe.c3}")
@@ -79,7 +82,8 @@ class OptimizeShapes:
     Also, skopt uses a list and cannot use a numpy array for the parameters
     to optimize.
 
-    Copy of optimize_many_shapes with slight tweaks.
+    Copy of optimize_many_shapes with slight tweaks. Not actively maintained
+    and may be broken.
     '''
     minimize_switch = {'gbrt': gbrt_minimize,'gp': gp_minimize, 'forest': forest_minimize, 'dummy': dummy_minimize}
 
@@ -109,14 +113,16 @@ class OptimizeShapes:
         '''
         oe.verbose=False
         self.oe = oe
-        self.quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
-        self.other_quads,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
+        self.quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
+        self.other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
         self.n_edge_pts = len(all_edge_points_list)
         n_mirrored_edge_pts = len(all_mirrored_edge_points_list)
+        n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list)
         edge_points = index_array_from_list(all_edge_points_list)
         mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
-        initial_shape = np.concatenate((oe.z[edge_points],oe.r[edge_points],oe.r[mirrored_edge_points])).tolist()
-        bounds = self.n_edge_pts*[(z_min,z_max)]+(self.n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
+        Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
+        initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.r[edge_points],oe.r[mirrored_edge_points])).tolist()
+        bounds = (self.n_edge_pts+n_Rboundary_edge_pts)*[(z_min,z_max)]+(self.n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
         result = self.minimize_switch.get(method,dummy_minimize)(self.change_n_quads_and_calculate,x0=initial_shape,dimensions=bounds,n_random_starts=n_random_starts,n_calls=n_calls,y0=c3)
         print('Optimization complete.')
         self.change_n_quads_and_calculate(result.x)
@@ -176,14 +182,16 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
             Default 10,000 V/mmm.
     '''
     oe.verbose=False
-    quads,all_edge_points_list,all_mirrored_edge_points_list = define_edges(oe,z_indices_list,r_indices_list,electrode_quads)
-    other_quads,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False,other_electrode_quads)
+    quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
+    other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
     n_edge_pts = len(all_edge_points_list)
     n_mirrored_edge_pts = len(all_mirrored_edge_points_list)
+    n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list)
     edge_points = index_array_from_list(all_edge_points_list)
     mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
-    initial_shape = np.concatenate((oe.z[edge_points],oe.r[edge_points],oe.r[mirrored_edge_points]))
-    bounds = n_edge_pts*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
+    Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
+    initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.r[edge_points],oe.r[mirrored_edge_points])).tolist()
+    bounds = (n_edge_pts+n_Rboundary_edge_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
         options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale)
@@ -219,23 +227,34 @@ class Quad:
     Class to carry around quad information for optimization.
     '''
 
-    def __init__(self,oe,z_indices,r_indices,separate_mirrored=True):
+    def __init__(self,oe,z_indices,r_indices,separate_mirrored=True,separate_radial_boundary=False):
+
         try:  # works if lens is electric
-            if(self.z_indices in oe.electrode_z_indices):
+            is_array_in_list = [np.array_equal(z_indices,element) for element in oe.electrode_z_indices]
+            if(any(is_array_in_list)):
+            # unfortunately verbose but functional version of
+            ## z_indices in oe.electrode_z_indices:
                 self.electrode = True
-                self.electrode_index = oe.electrode_z_indices.index(self.z_indices)
+                self.electrode_index = is_array_in_list.index(True)
+                # unfortunately verbose but functional version of 
+                ## self.electrode_index = oe.electrode_z_indices.index(z_indices)
             else:
                 self.electrode = False
                 self.electrode_index = None
         except NameError: # oe.electrode_z_indices doesn't exist because lens isn't electric
             self.electrode = False
             self.electrode_index = None
+
         self.edge_points_list = oe.retrieve_single_quad_edge_points(z_indices,r_indices)
         self.original_edge_points_list = self.edge_points_list.copy()
         if(separate_mirrored):
             self.mirrored_edge_points_list,self.edge_points_list = find_mirrored_edge_points(oe,self.edge_points_list)
         else:
             self.mirrored_edge_points_list = [],[]
+        if(separate_radial_boundary):
+            self.Rboundary_edge_points_list,self.edge_points_list = find_Rboundary_edge_points(oe,self.edge_points_list)
+        else:
+            self.Rboundary_edge_points_list = [],[]
 
     def delete_overlaps(self,edge_points_list,prior_edge_points_list):
         edge_points_list = [point for point in edge_points_list if point not in prior_edge_points_list]
@@ -243,11 +262,13 @@ class Quad:
     def count(self):
         self.n_edge_pts = len(self.edge_points_list)
         self.n_mirrored_edge_pts = len(self.mirrored_edge_points_list)
+        self.n_Rboundary_edge_pts = len(self.Rboundary_edge_points_list)
 
     def make_index_arrays(self):
         self.edge_points = index_array_from_list(self.edge_points_list)
         self.original_edge_points = index_array_from_list(self.original_edge_points_list)
         self.mirrored_edge_points = index_array_from_list(self.mirrored_edge_points_list)
+        self.Rboundary_edge_points = index_array_from_list(self.Rboundary_edge_points_list)
         # if((len(self.mirrored_edge_points_list) > 0) and (self.mirrored_edge_points_list != ([],[])) and (self.mirrored_edge_points_list != [],[])):
         #     self.mirrored_edge_points = index_array_from_list(self.mirrored_edge_points_list)
         # else:
@@ -265,17 +286,21 @@ def define_edges(oe,z_indices_list,r_indices_list,remove_duplicates_and_mirrored
     quads = []
     all_edge_points_list = []
     all_mirrored_edge_points_list = []
+    all_Rboundary_edge_points_list = []
     for i in range(n_quads):
-        quads.append(Quad(oe,z_indices_list[i],r_indices_list[i],separate_mirrored=(remove_duplicates_and_mirrored and oe.freeze_xy_plane)))
+        quads.append(Quad(oe,z_indices_list[i],r_indices_list[i],separate_mirrored=(remove_duplicates_and_mirrored and oe.freeze_xy_plane),separate_radial_boundary=(remove_duplicates_and_mirrored and oe.freeze_radial_boundary)))
         if(remove_duplicates_and_mirrored):
             quads[-1].delete_overlaps(quads[-1].edge_points_list,all_edge_points_list)
             if(oe.freeze_xy_plane):
                 quads[-1].delete_overlaps(quads[-1].mirrored_edge_points_list,all_mirrored_edge_points_list)
+            if(oe.freeze_radial_boundary):
+                quads[-1].delete_overlaps(quads[-1].Rboundary_edge_points_list,all_mirrored_edge_points_list)
         quads[-1].count()
         all_edge_points_list += quads[-1].edge_points_list
         all_mirrored_edge_points_list += quads[-1].mirrored_edge_points_list
+        all_Rboundary_edge_points_list += quads[-1].Rboundary_edge_points_list
         quads[-1].make_index_arrays()
-    return quads,all_edge_points_list,all_mirrored_edge_points_list
+    return quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list
 
 def generate_initial_simplex(initial_shape,oe,quads,other_quads,n_edge_pts,enforce_bounds=True,bounds=None,breakdown_field=None,scale=5):
     rng = np.random.default_rng()
@@ -299,6 +324,7 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,n_edge_pts,enforce_bound
     z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
     for quad in quads:
         oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
+        oe.z[quad.Rboundary_edge_points],Rboundary_z_shapes = np.split(z_shapes,[quad.n_Rboundary_edge_pts])
         oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
         oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
     if(enforce_bounds):
@@ -316,6 +342,11 @@ def find_mirrored_edge_points(oe,edge_points_list):
     mirrored_edge_points_list = [point for point in edge_points_list if oe.z[point] == 0]
     edge_points_list = [point for point in edge_points_list if oe.z[point] != 0]
     return mirrored_edge_points_list,edge_points_list
+
+def find_Rboundary_edge_points(oe,edge_points_list):
+    Rboundary_edge_points_list = [point for point in edge_points_list if point[1] == oe.r_indices.max()]
+    edge_points_list = [point for point in edge_points_list if point[1] != oe.r_indices.max()]
+    return Rboundary_edge_points_list,edge_points_list
 
 def change_imgplane_and_calculate(imgplane,oe):
     oe.write_opt_img_cond_file(oe.imgcondfilename,img_pos=imgplane[0])
@@ -347,7 +378,7 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,n_edge_pts,t=Timeout
 def are_electrodes_too_close(oe,breakdown_field,quads,other_quads):
     for i,quad in enumerate(quads):
         if(quad.electrode):
-            for other_quad in quads[i:]: # also checks self-intersection
+            for other_quad in quads[i+1:]: # also checks self-intersection
                 if(other_quad.electrode):
                     if(max_field(quad,other_quad,oe) > breakdown_field):
                         return True

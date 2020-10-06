@@ -138,7 +138,12 @@ class OpticalElement:
             determines whether the z coordinate for points initially along z=0
             is allowed to move in optimization. starts as True. set to False
             by mirror_type() if curved_mirror = True. may need to be manually
-            set to True for some optical elements.
+            set to False for some optical elements.
+        freeze_radial_boundary : bool
+            determines whether the r coordinate for points initially along 
+            r=r_max is allowed to move in optimization. starts as False. set to
+            True by mirror_type() regardless of arguments. may need to be
+            manually set to True for some optical elements.
 
     User methods:
         plot_mesh_coarse
@@ -210,7 +215,8 @@ class OpticalElement:
         self.so=so
         self.mirror = False
         self.curved_mirror = False
-        self.freeze_xy_plane = False
+        self.freeze_xy_plane = True
+        self.freeze_radial_boundary = False
         self.infile = []
         self.initialize_lists()
         self.verbose = verbose
@@ -1454,6 +1460,7 @@ class ElecLens(OpticalElement):
         self.curved_mirror = curved_mirror
         if(self.curved_mirror):
             self.freeze_xy_plane = False
+        self.freeze_radial_boundary = True
 
     def initialize_lists(self):
         # N two-element arrays for the r and z indices of 
