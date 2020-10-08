@@ -37,7 +37,9 @@ def calculate_c3(oe,curr_bound=None,t=TimeoutCheck()):
         if(oe.program == 'mirror'):
             calc_properties_mirror(oe)
     except TimeoutExpired: # if optics has failed over and over again, bail
-        t.timed_out = True
+        if(oe.program == 'optics'):
+            # optics probably has a dongle error
+            t.timed_out = True
         return 10000
     try: 
         if(oe.program == 'optics'):

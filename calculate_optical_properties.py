@@ -61,10 +61,13 @@ async def run_herm_then_mirror(oe,nterms):
     else:
         user_input = None
         
-    await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
+    try:
+        await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
                                                          user_input=user_input,verbose=oe.verbose)
 
-    await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout,verbose=oe.verbose)
+        await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout,verbose=oe.verbose)
+    except TimeoutExpired:
+        raise TimeoutExpired
 
 # takes optical_element object (oe) as argument
 def calc_properties_mirror(oe,nterms=50):
@@ -88,7 +91,10 @@ def calc_properties_mirror(oe,nterms=50):
             Default False.
     '''
     with cd(oe.dirname):
-        asyncio.run(run_herm_then_mirror(oe,nterms))
+        try:
+            asyncio.run(run_herm_then_mirror(oe,nterms))
+        except TimeoutExpired:
+            raise TimeoutExpired
         # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
         # print(output.decode('utf-8')) if oe.verbose else 0
         # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
