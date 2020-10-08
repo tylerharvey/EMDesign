@@ -1442,7 +1442,7 @@ class ElecLens(OpticalElement):
             return self.string
 
         def format_noflag(self):
-            return self.parent.check_len_multi((self.parent.int_fmt*len(self.voltages)).format(*self.voltages))
+            return self.parent.check_len_multi((self.parent.voltage_fmt*len(self.voltages)).format(*self.voltages))
 
     def mirror_type(self,mirror,curved_mirror):
         '''
