@@ -19,7 +19,7 @@ class TimeoutCheck:
     def __init__(self):
         self.timed_out = False
 
-def calculate_c3(oe,curr_bound=None,t=TimeoutCheck()):
+def calculate_c3(oe,curr_bound=None,t=None):
     '''
     Workhorse function for automation. Writes optical element file, then 
     calculates field, then calculates optical properties, and then reads them.
@@ -59,7 +59,7 @@ def calculate_c3(oe,curr_bound=None,t=TimeoutCheck()):
 
 def change_current_and_calculate(current,oe):
     oe.coil_curr = current
-    return calculate_c3(oe)
+    return calculate_c3(oe,t=TimeoutCheck())
 
 # for a single coil such that oe.coil_curr = [current]
 def optimize_single_current(oe):
@@ -89,7 +89,7 @@ class OptimizeShapes:
     '''
     minimize_switch = {'gbrt': gbrt_minimize,'gp': gp_minimize, 'forest': forest_minimize, 'dummy': dummy_minimize}
 
-    def __init__(self,oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='gbrt',c3=None,n_random_starts=10,n_calls=100):
+    def __init__(self,oe,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='gbrt',c3=None,n_random_starts=10,n_calls=100):
         '''
         Parameters:
             oe: OpticalElement object
@@ -113,6 +113,10 @@ class OptimizeShapes:
                 name of skopt method to use ('gbrt','forest','dummy','gp')
                 default 'gbrt'
         '''
+        if(other_z_indices_list is None):
+            other_z_indices_list = []
+        if(other_r_indices_list is None):
+            other_r_indices_list = []
         oe.verbose=False
         self.oe = oe
         self.quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
@@ -133,7 +137,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[],other_r_indices_list=[],z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3,breakdown_field=10e3):
+def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3,breakdown_field=10e3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -183,6 +187,10 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=[
             field at which vacuum breakdown is possible, in V/mm.
             Default 10,000 V/mmm.
     '''
+    if(other_z_indices_list is None):
+        other_z_indices_list = []
+    if(other_r_indices_list is None):
+        other_r_indices_list = []
     oe.verbose=False
     quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
@@ -570,7 +578,7 @@ def change_shape_and_calculate(shape,oe,edge_points,other_edges):
         return 10000
     oe.z[edge_points] = z_shape
     oe.r[edge_points] = r_shape
-    return calculate_c3(oe)
+    return calculate_c3(oe,t=TimeoutCheck())
 
 # calls does_quad_intersect_anything, which is not robust to all intersections
 class OptimizeSingleMagMatShape:
@@ -600,7 +608,7 @@ class OptimizeSingleMagMatShape:
             return 10000
         self.oe.z[self.edge_points] = z_shape
         self.oe.r[self.edge_points] = r_shape
-        return calculate_c3(self.oe)
+        return calculate_c3(self.oe,t=TimeoutCheck())
 
 # list version is better
 def find_mirrored_edge_points_array(oe,edge_points):

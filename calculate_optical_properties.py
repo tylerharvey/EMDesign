@@ -45,6 +45,7 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
     except asyncio.TimeoutError:
         print(f'Program {command_and_args[0]} timed out. Rerunning.')
         i+=1
+        proc.kill()
         if(i > max_attempts):
             raise TimeoutExpired
         else:
