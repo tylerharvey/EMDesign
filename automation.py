@@ -191,6 +191,7 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=N
         other_z_indices_list = []
     if(other_r_indices_list is None):
         other_r_indices_list = []
+    options_mutable = options.copy()
     oe.verbose=False
     quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
@@ -205,15 +206,15 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=N
     edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts]
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
-        options['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale)
+        options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options)
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options_mutable)
         elif(oe.lens_type == 'electrostatic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options)
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options_mutable)
     else:
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck()),bounds=bounds,method=method,options=options)
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck()),bounds=bounds,method=method,options=options_mutable)
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,edge_pts_splitlist)
