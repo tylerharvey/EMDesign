@@ -43,13 +43,17 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
     try:
         stdout,stderr = await asyncio.wait_for(proc.communicate(),timeout=timeout)
     except asyncio.TimeoutError:
-        print(f'Program {command_and_args[0]} timed out. Rerunning.')
         i+=1
         proc.kill()
         if(i > max_attempts):
-            raise TimeoutExpired
+            print('Maximum attempts reached.')
+            raise asyncio.TimeoutError
         else:
-            await run_async(command_and_args,i+1,timeout=timeout,user_input=user_input)
+            print(f'Program {command_and_args[0]} timed out. Rerunning.')
+            try: 
+                await run_async(command_and_args,i+1,timeout=timeout,user_input=user_input)
+            except asyncio.TimeoutError:
+                raise asyncio.TimeoutError
 
     if(stdout):
         print(f'{stdout.decode()}')
@@ -67,8 +71,8 @@ async def run_herm_then_mirror(oe,nterms):
                                                          user_input=user_input,verbose=oe.verbose)
 
         await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout,verbose=oe.verbose)
-    except TimeoutExpired:
-        raise TimeoutExpired
+    except asyncio.TimeoutError:
+        raise asyncio.TimeoutError
 
 # takes optical_element object (oe) as argument
 def calc_properties_mirror(oe,nterms=50):
@@ -94,8 +98,8 @@ def calc_properties_mirror(oe,nterms=50):
     with cd(oe.dirname):
         try:
             asyncio.run(run_herm_then_mirror(oe,nterms))
-        except TimeoutExpired:
-            raise TimeoutExpired
+        except asyncio.TimeoutError:
+            raise asyncio.TimeoutError
         # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
         # print(output.decode('utf-8')) if oe.verbose else 0
         # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout

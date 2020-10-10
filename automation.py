@@ -14,6 +14,7 @@ from optical_element_io import cd,index_array_from_list,Point
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
+import asyncio
 
 class TimeoutCheck:
     def __init__(self):
@@ -31,16 +32,17 @@ def calculate_c3(oe,curr_bound=None,t=None):
     
     oe.write(oe.filename)
     oe.calc_field()
-    try:
-        if(oe.program == 'optics'):
+    if(oe.program == 'optics'):
+        try:
             calc_properties_optics(oe)
-        if(oe.program == 'mirror'):
-            calc_properties_mirror(oe)
-    except TimeoutExpired: # if optics has failed over and over again, bail
-        if(oe.program == 'optics'):
-            # optics probably has a dongle error
+        except TimeoutExpired: # if optics has failed over and over again, bail
             t.timed_out = True
-        return 10000
+            return 10000 # likely dongle error
+    if(oe.program == 'mirror'):
+        try:
+            calc_properties_mirror(oe)
+        except asyncio.TimeoutError:
+            return 10000 # likely reached a shape where the image plane is too far for MIRROR
     try: 
         if(oe.program == 'optics'):
             oe.read_optical_properties()
