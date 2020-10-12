@@ -73,7 +73,6 @@ def optimize_single_current(oe):
 
     Not currently useful but could be made so with changes.
     '''
-    oe.verbose = False # limits the noise
     result = minimize(change_current_and_calculate,oe.coil_curr,args=(oe),method='Nelder-Mead')
     oe.coil_curr = result.x
     oe.write(oe.filename)
@@ -119,7 +118,6 @@ class OptimizeShapes:
             other_z_indices_list = []
         if(other_r_indices_list is None):
             other_r_indices_list = []
-        oe.verbose=False
         self.oe = oe
         self.quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
         self.other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
@@ -194,7 +192,6 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=N
     if(other_r_indices_list is None):
         other_r_indices_list = []
     options_mutable = options.copy()
-    oe.verbose=False
     quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
     n_edge_pts = len(all_edge_points_list)
@@ -229,7 +226,6 @@ def optimize_image_plane(oe,min_dist=3,image_plane=6):
     spherical aberration. In practice, that is always zero distance from the
     object plane, so needs to be rewritten to be useful.
     '''
-    oe.verbose = False
     initial_plane = [image_plane] # mm
     bounds = [(min_dist,100)]
     result = minimize(change_imgplane_and_calculate,initial_plane,args=(oe),bounds=bounds,method='TNC',options={'eps':0.5,'stepmx':5,'minfev':1})
@@ -327,6 +323,8 @@ def generate_initial_simplex(initial_shape,oe,quads,other_quads,edge_pts_splitli
         while(change_n_quads_and_check(simplex[i],oe,quads,other_quads,
               edge_pts_splitlist,enforce_bounds,bounds,breakdown_field)):
             simplex[i] = rng.normal(initial_shape,scale,N)
+        if(oe.verbose):
+            print(f'Simplex {i+1} of {N+1} complete.')
     # save result
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext),simplex)
     # return shape to initial shape
@@ -407,8 +405,8 @@ def max_field(quad,other_quad,oe):
     return delta_V/min_distance(quad,other_quad,oe)
 
 def min_distance(quad,other_quad,oe):
-    delta_z = oe.z[quad.edge_points] - oe.z[other_quad.edge_points]
-    delta_r = oe.r[quad.edge_points] - oe.r[other_quad.edge_points]
+    delta_z = oe.z[quad.edge_points][:,np.newaxis] - oe.z[other_quad.edge_points][np.newaxis,:]
+    delta_r = oe.r[quad.edge_points][:,np.newaxis] - oe.r[other_quad.edge_points][np.newaxis,:]
     distance = np.linalg.norm([delta_z,delta_r],axis=0)
     return np.min(distance)
 

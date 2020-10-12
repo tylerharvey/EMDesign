@@ -42,6 +42,9 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
 
     try:
         stdout,stderr = await asyncio.wait_for(proc.communicate(),timeout=timeout)
+        if(stdout):
+            print(f'{stdout.decode()}')
+        # MEBS doesn't generally use STDERR
     except asyncio.TimeoutError:
         i+=1
         proc.kill()
@@ -55,9 +58,6 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
             except asyncio.TimeoutError:
                 raise asyncio.TimeoutError
 
-    if(stdout):
-        print(f'{stdout.decode()}')
-    # MEBS doesn't generally use STDERR
 
 async def run_herm_then_mirror(oe,nterms):
     symstring = 'AN' if oe.mirror else 'NN'
