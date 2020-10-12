@@ -217,6 +217,8 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=N
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
     change_n_quads_and_calculate(result.x,oe,quads,other_quads,edge_pts_splitlist)
+    if(oe.program == 'mirror'):
+        oe.calc_rays()
     if(method=='Nelder-Mead' and options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns',result['allvecs'])
 

@@ -599,7 +599,7 @@ class OpticalElement:
                 print('Ray tracing timed out. Rerunnning.')
                 self.calc_rays()
 
-    def write_raytrace_file(self,mircondfilename,source_pos=90,source_size=1000,semiangle=10,energy=200000,initial_direction=180,lens_type='Electrostatic',lens_pos=0,lens_excitation=None,potentials=None,screen_pos=95,relativity=False,cyl_symm=True,r_samples=3,alpha_samples=3,precision=6,n_equipotentials=50):
+    def write_raytrace_file(self,mircondfilename,source_pos=90,source_size=200,semiangle=10,energy=200000,initial_direction=180,lens_type='Electrostatic',lens_pos=0,lens_excitation=None,potentials=None,screen_pos=95,relativity=False,cyl_symm=True,r_samples=3,alpha_samples=3,precision=6,n_equipotentials=50):
         '''
         Creates an input file for SORAY.exe. Primarily for visualizing columns
         implemented in MIRROR. All physical parameters have same name, units
@@ -618,7 +618,7 @@ class OpticalElement:
             source_size: float
                 Source size (microns). Not related to resolution; just the
                 starting size of the ray bundle.
-                Default 1000.
+                Default 200.
             semiangle : float
                 Semiangle (mrad) for emission from source.
                 Default 10.
@@ -716,7 +716,7 @@ class OpticalElement:
         cf = None
 
 
-    def write_mir_img_cond_file(self,mircondfilename,source_pos=90,source_shape='ROUND',source_size=200,intensity_dist='UNIFORM',ang_shape='ROUND',semiangle=10,ang_dist='UNIFORM',energy=200000,energy_width=1,energy_dist='Gaussian',lens_type='electrostatic',lens_pos=0,lens_scale=1,lens_excitation=None,potentials=None,ray_method="R",order=3,focus_mode="AUTO",img_pos=95,screen_pos=None,mir_screen_pos=None,save_trj=True,obj_pos=None,obj_semiangle=None,x_size=0.1,y_size=0.1,reverse_dir=True,turning_point=5,precision=6):
+    def write_mir_img_cond_file(self,mircondfilename,source_pos=90,source_shape='ROUND',source_size=200,intensity_dist='UNIFORM',ang_shape='ROUND',semiangle=10,ang_dist='UNIFORM',energy=200000,energy_width=1,energy_dist='Gaussian',lens_type='electrostatic',lens_pos=0,lens_scale=1,lens_excitation=None,potentials=None,ray_method="R",order=3,focus_mode="AUTO",img_pos=95,screen_pos=None,mir_screen_pos=None,save_trj=True,obj_pos=None,obj_semiangle=None,x_size=0.1,y_size=0.1,reverse_dir=True,turning_point=5,precision=6,raytrace=True):
         '''
         Writes optical imaging conditions file for MIRROR. Must be run before
         calc_properties_mirror(). 
@@ -828,6 +828,9 @@ class OpticalElement:
                 Default 50. **
             precision : int
                 Number of decimal places to print floats with.
+            raytrace : bool
+                Determines whether raytrace file with same parameters is 
+                automatically written and calc_rays() is run.
         '''
         self.program = 'mirror'
         if(obj_pos == None):
@@ -849,6 +852,10 @@ class OpticalElement:
         self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
         cf = open(self.mircondfilename,'w') 
         self.mir_cond_title = self.title+' Imaging Conditions for MIRROR'
+        
+        if(raytrace):
+            write_raytrace_file(mircondfilename,source_pos=source_pos,source_size=source_size,semiangle=semiangle,energy=np.abs(energy),initial_direction=180*reverse_dir,lens_type=lens_type,lens_pos=lens_pos,lens_excitation=lens_excitation,potentials=potentials,screen_pos=screen_pos)
+            calc_rays()
 
         cf.write(f"Title     {self.mir_cond_title:>70}\n\n")
         cf.write("SOURCE\n")
