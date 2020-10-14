@@ -153,6 +153,7 @@ class OpticalElement:
         read_optical_properties
         read_mir_optical_properties
         calc_rays
+        plot_rays
         add_curvature (converts optical element .dat file for FOFEM use)
 
     Hard-coded attributes:
@@ -399,7 +400,17 @@ class OpticalElement:
                 sets matplotlib ylim to zoom in on region of th r axis.
                 generally looks horrible with index_labels=True.
         '''
-        # plt.scatter(self.z.flatten(),self.r.flatten(),)
+        self.add_mesh_to_plot(index_labels,adj)
+        self.add_quads_to_plot() if quads_on else 0
+        plt.xlabel("z (mm)")
+        plt.ylabel("r (mm)")
+        plt.xlim(zlim)
+        plt.ylim(rlim)
+        # plt.title("Mesh (coarse)")
+        plt.gca().set_aspect('equal')
+        plt.show()
+
+    def add_mesh_to_plot(self,index_labels=True,adj=6):
         for n in range(self.z.shape[0]):
             if(index_labels):
                 # add r index label
@@ -412,14 +423,6 @@ class OpticalElement:
                 plt.text(self.z[np.argmax(self.r[:,n]),n],self.r[:,n].max()+adj,self.z_indices[n])
             # plot this iso-z-index line
             plt.plot(self.z[:,n],self.r[:,n],color='m')
-        self.plot_quads() if quads_on else 0
-        plt.xlabel("z (mm)")
-        plt.ylabel("r (mm)")
-        plt.xlim(zlim)
-        plt.ylim(rlim)
-        # plt.title("Mesh (coarse)")
-        plt.gca().set_aspect('equal')
-        plt.show()
         
     def plot_mesh_segments(self,segments,quads_on=True):
         '''
@@ -433,13 +436,13 @@ class OpticalElement:
         '''
         for segment in segments:
             plt.plot([segment[0].z,segment[1].z],[segment[0].r,segment[1].r],color='m')
-        self.plot_quads() if quads_on else 0
+        self.add_quads_to_plot() if quads_on else 0
         plt.xlabel("z (mm)")
         plt.ylabel("r (mm)")
         plt.gca().set_aspect('equal')
         plt.show()
 
-    def plot_quads(self):
+    def add_quads_to_plot(self):
         pass
     
     def retrieve_segments(self,z_indices,r_indices):
@@ -598,6 +601,57 @@ class OpticalElement:
             except TimeoutExpired:
                 print('Ray tracing timed out. Rerunnning.')
                 self.calc_rays()
+    def plot_rays(self,cyl_symm=True,quads_on=True,mesh_on=True):
+        '''
+        Run after calc_rays() to plot rays.
+
+        Optional parameters:
+            cyl_symm : bool
+                Determines whether separate x and y values are plotted, or
+                just r.
+        '''
+        step,z,r,x,y = np.loadtxt(os.path.join(self.dirname,self.raytracebasename_noext+'.raf'),skiprows=8,unpack=True)
+        split_indices = np.squeeze(np.argwhere(step[:-1] > step[1:]))+1
+        steps = np.split(step,split_indices)
+        zs = np.split(z,split_indices)
+        rs = np.split(r,split_indices)
+        xs = np.split(x,split_indices)
+        ys = np.split(y,split_indices)
+        self.add_mesh_to_plot() if mesh_on else 0
+        self.add_quads_to_plot() if quads_on else 0
+        colors = ['b','g','c']
+        for i in range(len(steps)):
+            if(cyl_symm):
+                plt.plot(zs[i],rs[i])
+            else:
+                plt.plot(zs[i],xs[i],color=colors[i%3],label='x component of ray')
+                plt.plot(zs[i],ys[i],color=colors[i%3],linestyle=':',label='y component of ray')
+        plt.xlabel('z (mm)')
+        if(cyl_symm):
+            plt.ylabel('r (mm)') 
+        else:
+            plt.ylabel('x and y (mm)')
+            plt.legend()
+        plt.title('Rays')
+        plt.gca().set_aspect('equal')
+        plt.show()
+            
+
+    # this will ultimately make more sense as an independent object
+    # writing it here for now
+    # class OpticalConfiguration:
+    #     def __init__(self,mircondfilename,source_pos,source_size,semiangle,energy,initial_direction,lens_type,lens_pos,lens_excitation,potentials,screen_pos):
+    #         self.mircondfilename=mircondfilename
+    #         self.source_pos=source_pos
+    #         self.source_size=source_size
+    #         self.semiangle=semiangle
+    #         self.energy=energy
+    #         self.initial_direction=initial_direction
+    #         self.lens_type=lens_type
+    #         self.lens_pos=lens_pos
+    #         self.lens_excitation=lens_excitation
+    #         self.potentials=potentials
+    #         self.screen_pos=screen_pos
 
     def write_raytrace_file(self,mircondfilename,source_pos=90,source_size=200,semiangle=10,energy=200000,initial_direction=180,lens_type='Electrostatic',lens_pos=0,lens_excitation=None,potentials=None,screen_pos=95,relativity=False,cyl_symm=True,r_samples=3,alpha_samples=3,precision=6,n_equipotentials=50):
         '''
@@ -854,8 +908,8 @@ class OpticalElement:
         self.mir_cond_title = self.title+' Imaging Conditions for MIRROR'
         
         if(raytrace):
-            write_raytrace_file(mircondfilename,source_pos=source_pos,source_size=source_size,semiangle=semiangle,energy=np.abs(energy),initial_direction=180*reverse_dir,lens_type=lens_type,lens_pos=lens_pos,lens_excitation=lens_excitation,potentials=potentials,screen_pos=screen_pos)
-            calc_rays()
+            self.write_raytrace_file(mircondfilename,source_pos=source_pos,source_size=source_size,semiangle=semiangle,energy=np.abs(energy),initial_direction=180*reverse_dir,lens_type=lens_type,lens_pos=lens_pos,lens_excitation=lens_excitation,potentials=potentials,screen_pos=screen_pos)
+            self.calc_rays()
 
         cf.write(f"Title     {self.mir_cond_title:>70}\n\n")
         cf.write("SOURCE\n")
@@ -1219,7 +1273,7 @@ class StrongMagLens(OpticalElement):
                 f.write("\n")
             f.write("\n")
             
-    def plot_quads(self):
+    def add_quads_to_plot(self):
         self.plot_mag_mat()
         self.plot_coil()
     
@@ -1386,7 +1440,7 @@ class WeakMagLens_PP_Region(WeakMagLens):
                 f.write(self.check_len(self.curr_fmt.format(self.boundary_coil_currents[m][k])))
         f.write("\n")
 
-    def plot_quads(self):
+    def add_quads_to_plot(self):
         self.plot_mag_mat()
 
     def calc_field(self):
@@ -1558,7 +1612,7 @@ class ElecLens(OpticalElement):
         f.write("\n")
         # do this
 
-    def plot_quads(self):
+    def add_quads_to_plot(self):
         self.plot_electrodes()
         self.plot_dielectrics()
     
