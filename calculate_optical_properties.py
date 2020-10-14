@@ -59,7 +59,7 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
                 raise asyncio.TimeoutError
 
 
-async def run_herm_then_mirror(oe,nterms):
+async def run_herm_then_mirror(oe,col,nterms):
     symstring = 'AN' if oe.mirror else 'NN'
     if(oe.mirror):
         user_input = 'Y\n' if oe.curved_mirror else 'N\n'
@@ -70,12 +70,12 @@ async def run_herm_then_mirror(oe,nterms):
         await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
                                                          user_input=user_input,verbose=oe.verbose)
 
-        await run_async(['MIRROR.exe',oe.mircondbasename_noext],timeout=oe.timeout,verbose=oe.verbose)
+        await run_async(['MIRROR.exe',col.mircondbasename_noext],timeout=col.timeout,verbose=oe.verbose)
     except asyncio.TimeoutError:
         raise asyncio.TimeoutError
 
 # takes optical_element object (oe) as argument
-def calc_properties_mirror(oe,nterms=50):
+def calc_properties_mirror(oe,col,nterms=50):
     '''
     Function for calculating optical properties of electrostatic
     mirrors with MIRROR. Implemented for only a single optical
@@ -97,7 +97,7 @@ def calc_properties_mirror(oe,nterms=50):
     '''
     with cd(oe.dirname):
         try:
-            asyncio.run(run_herm_then_mirror(oe,nterms))
+            asyncio.run(run_herm_then_mirror(oe,col,nterms))
         except asyncio.TimeoutError:
             raise asyncio.TimeoutError
         # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
@@ -105,7 +105,9 @@ def calc_properties_mirror(oe,nterms=50):
         # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
         # print(output.decode('utf-8')) if oe.verbose else 0
 
-def calc_properties_optics(oe,i=0,max_attempts=3):
+# oe not a strictly necessary argument here if oe.verbose is passed to col
+# leaving for consistency
+def calc_properties_optics(oe,col,i=0,max_attempts=3):
     '''
     function for calculating optical properties of electric or magnetic lenses
     with OPTICS ABER5. 
@@ -116,11 +118,11 @@ def calc_properties_optics(oe,i=0,max_attempts=3):
     '''
     with cd(oe.dirname):
         outputmode = subprocess.PIPE if oe.verbose else None
-        if(os.path.exists(oe.imgcondfilename) != True):
+        if(os.path.exists(col.imgcondfilename) != True):
             print('No optical imaging conditions file found. Run OpticalElement.write_opt_img_cond_file() first.')
             raise FileNotFoundError
         try:
-            output = subprocess.run(['OPTICS.exe','ABER',oe.imgcondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
+            output = subprocess.run(['OPTICS.exe','ABER',col.imgcondbasename_noext],stdout=outputmode,timeout=col.timeout).stdout
             print(output.decode('utf-8')) if oe.verbose else 0
         except TimeoutExpired:
             i+=1
@@ -128,7 +130,7 @@ def calc_properties_optics(oe,i=0,max_attempts=3):
             if(i > max_attempts):
                 raise TimeoutExpired
             else:
-                calc_properties_optics(oe,i)
+                calc_properties_optics(oe,col,i)
         except AttributeError:
             print('OpticalElement.imagecondbasename_noext not set. Run '
                   'OpticalElement.write_opt_img_cond_file() first.') 

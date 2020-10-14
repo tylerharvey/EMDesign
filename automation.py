@@ -20,7 +20,7 @@ class TimeoutCheck:
     def __init__(self):
         self.timed_out = False
 
-def calculate_c3(oe,curr_bound=None,t=None):
+def calculate_c3(oe,col,curr_bound=None,t=None):
     '''
     Workhorse function for automation. Writes optical element file, then 
     calculates field, then calculates optical properties, and then reads them.
@@ -32,39 +32,39 @@ def calculate_c3(oe,curr_bound=None,t=None):
     
     oe.write(oe.filename)
     oe.calc_field()
-    if(oe.program == 'optics'):
+    if(col.program == 'optics'):
         try:
-            calc_properties_optics(oe)
+            calc_properties_optics(oe,col)
         except TimeoutExpired: # if optics has failed over and over again, bail
             t.timed_out = True
             return 10000 # likely dongle error
-    if(oe.program == 'mirror'):
+    if(col.program == 'mirror'):
         try:
-            calc_properties_mirror(oe)
+            calc_properties_mirror(oe,col)
         except asyncio.TimeoutError:
             return 10000 # likely reached a shape where the image plane is too far for MIRROR
     try: 
-        if(oe.program == 'optics'):
-            oe.read_optical_properties()
-        if(oe.program == 'mirror'):
-            oe.read_mir_optical_properties()
+        if(col.program == 'optics'):
+            col.read_optical_properties()
+        if(col.program == 'mirror'):
+            col.read_mir_optical_properties()
     except UnboundLocalError: # if optics fails, return garbage
         return 100
-    print(f"f: {oe.f}, C3: {oe.c3}")
+    print(f"f: {col.f}, C3: {col.c3}")
     if(curr_bound):
         coil_area = 0
         for i in range(len(oe.coil_z_indices)):
             coil_area += oe.determine_quad_area(oe.coil_z_indices[i],oe.coil_r_indices[i])
         if(oe.lens_curr/coil_area > curr_bound):
             return 100
-    return np.abs(oe.c3)
+    return np.abs(col.c3)
 
-def change_current_and_calculate(current,oe):
+def change_current_and_calculate(current,oe,col):
     oe.coil_curr = current
-    return calculate_c3(oe,t=TimeoutCheck())
+    return calculate_c3(oe,col,t=TimeoutCheck())
 
 # for a single coil such that oe.coil_curr = [current]
-def optimize_single_current(oe):
+def optimize_single_current(oe,col):
     '''
     In principle, finds current of one coil necessary to minimize spherical
     aberration. In practice, has multiple problems:
@@ -73,7 +73,7 @@ def optimize_single_current(oe):
 
     Not currently useful but could be made so with changes.
     '''
-    result = minimize(change_current_and_calculate,oe.coil_curr,args=(oe),method='Nelder-Mead')
+    result = minimize(change_current_and_calculate,oe.coil_curr,args=(oe,col),method='Nelder-Mead')
     oe.coil_curr = result.x
     oe.write(oe.filename)
     print('Optimization complete')
@@ -85,12 +85,12 @@ class OptimizeShapes:
     Also, skopt uses a list and cannot use a numpy array for the parameters
     to optimize.
 
-    Copy of optimize_many_shapes with slight tweaks. Not actively maintained
-    and may be broken.
+    Copy of optimize_many_shapes with slight tweaks. Actively updated for
+    consistency but not actively bug-tested and may be broken.
     '''
     minimize_switch = {'gbrt': gbrt_minimize,'gp': gp_minimize, 'forest': forest_minimize, 'dummy': dummy_minimize}
 
-    def __init__(self,oe,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='gbrt',c3=None,n_random_starts=10,n_calls=100):
+    def __init__(self,oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='gbrt',c3=None,n_random_starts=10,n_calls=100):
         '''
         Parameters:
             oe: OpticalElement object
@@ -119,11 +119,12 @@ class OptimizeShapes:
         if(other_r_indices_list is None):
             other_r_indices_list = []
         self.oe = oe
+        self.col = col
         self.quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
         self.other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
         self.n_edge_pts = len(all_edge_points_list)
-        n_mirrored_edge_pts = len(all_mirrored_edge_points_list)
-        n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list)
+        n_mirrored_edge_pts = len(all_mirrored_edge_points_list) if any(all_mirrored_edge_points_list) else 0
+        n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list) if any(all_Rboundary_edge_points_list) else 0
         edge_points = index_array_from_list(all_edge_points_list)
         mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
         Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
@@ -134,10 +135,10 @@ class OptimizeShapes:
         self.change_n_quads_and_calculate(result.x)
 
     def change_n_quads_and_calculate(self,shape):
-        return change_n_quads_and_calculate(np.array(shape),self.oe,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
+        return change_n_quads_and_calculate(np.array(shape),self.oe,self.col,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3,breakdown_field=10e3):
+def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3,breakdown_field=10e3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -195,8 +196,8 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=N
     quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
     n_edge_pts = len(all_edge_points_list)
-    n_mirrored_edge_pts = len(all_mirrored_edge_points_list)
-    n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list)
+    n_mirrored_edge_pts = len(all_mirrored_edge_points_list) if any(all_mirrored_edge_points_list) else 0
+    n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list) if any(all_Rboundary_edge_points_list) else 0
     edge_points = index_array_from_list(all_edge_points_list)
     mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
     Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
@@ -209,16 +210,16 @@ def optimize_many_shapes(oe,z_indices_list,r_indices_list,other_z_indices_list=N
         print('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options_mutable)
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options_mutable)
         elif(oe.lens_type == 'electrostatic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options_mutable)
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options_mutable)
     else:
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,quads,other_quads,edge_pts_splitlist,TimeoutCheck()),bounds=bounds,method=method,options=options_mutable)
+        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,quads,other_quads,edge_pts_splitlist,TimeoutCheck()),bounds=bounds,method=method,options=options_mutable)
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
-    change_n_quads_and_calculate(result.x,oe,quads,other_quads,edge_pts_splitlist)
-    if(oe.program == 'mirror'):
-        oe.calc_rays()
+    change_n_quads_and_calculate(result.x,oe,col,quads,other_quads,edge_pts_splitlist)
+    if(col.program == 'mirror'):
+        col.raytrace_from_saved_values()
     if(method=='Nelder-Mead' and options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns',result['allvecs'])
 
@@ -253,7 +254,7 @@ class Quad:
             else:
                 self.electrode = False
                 self.electrode_index = None
-        except NameError: # oe.electrode_z_indices doesn't exist because lens isn't electric
+        except (NameError,AttributeError): # oe.electrode_z_indices doesn't exist because lens isn't electric
             self.electrode = False
             self.electrode_index = None
 
@@ -370,10 +371,10 @@ def change_imgplane_and_calculate(imgplane,oe):
         oe.read_optical_properties()
     except UnboundLocalError: # if optics fails, return garbage
         return 100
-    print(f"f: {oe.f}, C3: {oe.c3}")
-    return np.abs(oe.c3)
+    print(f"f: {col.f}, C3: {col.c3}")
+    return np.abs(col.c3)
 
-def change_n_quads_and_calculate(shape,oe,quads,other_quads,edge_pts_splitlist,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None,breakdown_field=None):
+def change_n_quads_and_calculate(shape,oe,col,quads,other_quads,edge_pts_splitlist,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None,breakdown_field=None):
     if(t.timed_out):
         return 10000
     # z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
@@ -388,7 +389,7 @@ def change_n_quads_and_calculate(shape,oe,quads,other_quads,edge_pts_splitlist,t
     #     return 10000
     if(change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=enforce_bounds,bounds=bounds,breakdown_field=breakdown_field)):
         return 10000
-    return calculate_c3(oe,curr_bound,t)
+    return calculate_c3(oe,col,curr_bound,t)
 
 def are_electrodes_too_close(oe,breakdown_field,quads,other_quads):
     for i,quad in enumerate(quads):
