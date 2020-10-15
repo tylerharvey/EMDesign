@@ -573,6 +573,7 @@ class OpticalColumn:
         self.mag = float(properties_lines[linenum_mag].split()[3])
         self.rot = float(properties_lines[linenum_rot].split()[5]) # deg
         self.lens_curr = float(properties_lines[linenum_curr].split()[7])
+        self.oe.lens_curr = self.lens_curr
         ## I didn't need to implement this yet
         # self.lens_curr = []
         # i = 0
