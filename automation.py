@@ -47,7 +47,7 @@ def calculate_c3(oe,col,curr_bound=None,t=None):
         if(col.program == 'optics'):
             col.read_optical_properties()
         if(col.program == 'mirror'):
-            col.read_mir_optical_properties()
+            col.read_mir_optical_properties(raytrace=False)
     except UnboundLocalError: # if optics fails, return garbage
         return 100
     print(f"f: {col.f}, C3: {col.c3}")

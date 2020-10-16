@@ -243,7 +243,7 @@ class OpticalColumn:
         cf = None
 
 
-    def write_mir_img_cond_file(self,mircondfilename,source_pos=90,source_shape='ROUND',source_size=200,intensity_dist='UNIFORM',ang_shape='ROUND',semiangle=10,ang_dist='UNIFORM',energy=200000,energy_width=1,energy_dist='Gaussian',lens_type='electrostatic',lens_pos=0,lens_scale=1,lens_excitation=None,potentials=None,ray_method="R",order=3,focus_mode="AUTO",img_pos=95,screen_pos=None,mir_screen_pos=None,save_trj=True,obj_pos=None,obj_semiangle=None,x_size=0.1,y_size=0.1,reverse_dir=True,turning_point=5,precision=6,raytrace=True):
+    def write_mir_img_cond_file(self,mircondfilename,source_pos=90,source_shape='ROUND',source_size=200,intensity_dist='UNIFORM',ang_shape='ROUND',semiangle=10,ang_dist='UNIFORM',energy=200000,energy_width=1,energy_dist='Gaussian',lens_type='electrostatic',lens_pos=0,lens_scale=1,lens_excitation=None,potentials=None,ray_method="R",order=3,focus_mode="AUTO",img_pos=95,screen_pos=None,mir_screen_pos=None,save_trj=True,obj_pos=None,obj_semiangle=None,x_size=0.1,y_size=0.1,reverse_dir=True,turning_point=5,precision=6):
         '''
         Writes optical imaging conditions file for MIRROR. Must be run before
         calc_properties_mirror(). 
@@ -394,9 +394,6 @@ class OpticalColumn:
         self.potentials=potentials
         self.screen_pos=screen_pos
         
-        if(raytrace):
-            self.raytrace_from_saved_values()
-
         cf.write(f"Title     {self.mir_cond_title:>70}\n\n")
         cf.write("SOURCE\n")
         cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(source_pos)+"\n")
@@ -591,7 +588,7 @@ class OpticalColumn:
 
     # this is bound to break when the .res file changes 
     # in ways I haven't foreseen. fix as needed.
-    def read_mir_optical_properties(self,raytrace=False):
+    def read_mir_optical_properties(self,raytrace=True):
         '''
         Run after calc_properties_mirror() to read in the computed optical 
         properties.
@@ -631,5 +628,9 @@ class OpticalColumn:
         self.cc = float(properties_lines[linenum_cc].split()[0]) # m to mm
         pf.close()
         pf = None
+
+        if(raytrace):
+            self.raytrace_from_saved_values()
+
 
 
