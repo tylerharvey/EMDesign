@@ -1,0 +1,7 @@
+/home/trh/data/std_obj/trees/cb/obj33_double_mesh.dat
+/home/trh/data/std_obj/trees/cb/obj34.dat
+/home/trh/data/std_obj/trees/cb/opt_col34.dat
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
+# obj = StrongMagLens("/home/trh/data/std_obj/trees/c/obj33_double_mesh.dat",verbose=True)
+# obj.write("/home/trh/data/std_obj/trees/c/obj34.dat")
+# obj.write_opt_img_cond_file("/home/trh/data/std_obj/trees/c/opt_col34.dat")

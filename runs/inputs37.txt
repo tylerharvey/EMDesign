@@ -1,0 +1,8 @@
+/home/trh/data/std_obj/trees/c/obj36.dat
+/home/trh/data/std_obj/trees/c/obj37.dat
+/home/trh/data/std_obj/trees/c/opt_col37.dat
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj37.npy
+-2.5
+4
+Comments:
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
