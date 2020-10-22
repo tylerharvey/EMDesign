@@ -1,0 +1,8 @@
+/home/trh/data/sc_shielded_obj/SCobj00.dat
+/home/trh/data/sc_shielded_obj/SCobj01.dat
+/home/trh/data/sc_shielded_obj/opt_SCcol01.dat
+None
+-2.5
+4
+Comments:
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
