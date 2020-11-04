@@ -39,6 +39,6 @@ col.read_mir_optical_properties(raytrace=True)
 # col.plot_rays()
 
 initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filename)
-optimize_many_shapes(obj,col,obj.dielectric_z_indices+obj.electrode_z_indices,obj.dielectric_r_indices+obj.electrode_r_indices,z_min=-50,z_max=z_max,r_min=r_min,r_max=150,simplex_scale=5,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
+optimize_many_shapes(obj,col,obj.dielectric_z_indices+obj.electrode_z_indices,obj.dielectric_r_indices+obj.electrode_r_indices,z_min=-50,z_max=z_max,r_min=r_min,r_max=150,simplex_scale=3,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
 
 print(col.c3)

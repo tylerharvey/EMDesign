@@ -263,6 +263,25 @@ class OpticalElement:
         return line_num # save line number of the start of the next block
     
     def read_curvature(self,line_num):
+        ## curvature intro
+        # for z = | z_A z_B |
+        #         | z_C z_D |
+        # and r = | r_A r_B |
+        #         | r_C r_D |
+        # and z_curv = | zc_A zc_B |
+        #              | zc_C zc_D |
+        # and r_curv = | rc_A rc_B |
+        #              | rc_C rc_D |
+        # the value zc_A sets the curvature for the segment A-C
+        # where zc_A > 0 puts the origin of the circle connecting
+        # points A and C at a lower z value than z_A and z_C
+        # so, in normal z-r plots, A-C bows out to the right
+        # the value rc_A sets the curvature for the segment A-B
+        # where rc_A > 0 puts the origin of the circle connecting
+        # points A and B at a lower r value than r_A and r_B
+        # so, A-B bows upwards
+        # (assumes normal MEBS ordering, where z_B > z_A and r_A > r_C)
+        # zc_C, zc_D, rc_B and rc_D do nothing
         z_curv = [] # radii of curvature of the left and right sides of quads
         r_curv = [] # radii of curvature of the top and bottom sides of quads
         line_num+=1 # move past z indices line
