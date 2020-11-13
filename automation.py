@@ -10,11 +10,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
-from optical_element_io import cd,index_array_from_list,Point
+from optical_element_io import cd,index_array_from_list
+from optical_element_io import Point
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 import asyncio
+# from sympy import *
+# from sympy.geometry import *
 
 class TimeoutCheck:
     def __init__(self):
@@ -282,10 +285,6 @@ class Quad:
         self.original_edge_points = index_array_from_list(self.original_edge_points_list)
         self.mirrored_edge_points = index_array_from_list(self.mirrored_edge_points_list)
         self.Rboundary_edge_points = index_array_from_list(self.Rboundary_edge_points_list)
-        # if((len(self.mirrored_edge_points_list) > 0) and (self.mirrored_edge_points_list != ([],[])) and (self.mirrored_edge_points_list != [],[])):
-        #     self.mirrored_edge_points = index_array_from_list(self.mirrored_edge_points_list)
-        # else:
-        #     self.mirrored_edge_points = [],[]
 
 
 # takes a list of quads definedb by two z indices and two r indices
@@ -349,8 +348,6 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enfor
         return True
     if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,quads,other_quads)):
         return True
-    # if(do_quads_intersect_anything(oe,quads,other_quads)):
-    #     return True
     return False
 
 def find_mirrored_edge_points(oe,edge_points_list):
@@ -377,16 +374,6 @@ def change_imgplane_and_calculate(imgplane,oe):
 def change_n_quads_and_calculate(shape,oe,col,quads,other_quads,edge_pts_splitlist,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None,breakdown_field=None):
     if(t.timed_out):
         return 10000
-    # z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,[n_edge_pts,2*n_edge_pts])
-    # for quad in quads:
-    #     oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
-    #     oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
-    #     oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
-    # if(enforce_bounds):
-    #     if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
-    #         return 10000
-    # if(do_quads_intersect_anything(oe,quads,other_quads)):
-    #     return 10000
     if(change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=enforce_bounds,bounds=bounds,breakdown_field=breakdown_field)):
         return 10000
     return calculate_c3(oe,col,curr_bound,t)
@@ -394,7 +381,7 @@ def change_n_quads_and_calculate(shape,oe,col,quads,other_quads,edge_pts_splitli
 def are_electrodes_too_close(oe,breakdown_field,quads,other_quads):
     for i,quad in enumerate(quads):
         if(quad.electrode):
-            for other_quad in quads[i+1:]: # also checks self-intersection
+            for other_quad in quads[i+1:]: 
                 if(other_quad.electrode):
                     if(max_field(quad,other_quad,oe) > breakdown_field):
                         return True
@@ -412,24 +399,6 @@ def min_distance(quad,other_quad,oe):
     delta_r = oe.r[quad.edge_points][:,np.newaxis] - oe.r[other_quad.edge_points][np.newaxis,:]
     distance = np.linalg.norm([delta_z,delta_r],axis=0)
     return np.min(distance)
-
-def do_quads_intersect_anything(oe,quads,other_quads):
-    for i,quad in enumerate(quads):
-        # if(is_quad_self_intersecting(oe.z[quad.original_edge_points],oe.r[quad.original_edge_points])):
-        #     return True
-        # for other_quad in quads[i+1:]:
-        for other_quad in quads[i:]: # also checks self-intersection
-            if(does_quad_intersect_other_quad(oe.z[quad.original_edge_points],oe.r[quad.original_edge_points],oe.z[other_quad.original_edge_points],oe.r[other_quad.original_edge_points])):
-                return True
-        for other_quad in other_quads:
-            if(does_quad_intersect_other_quad(oe.z[quad.original_edge_points],oe.r[quad.original_edge_points],oe.z[other_quad.original_edge_points],oe.r[other_quad.original_edge_points])):
-                return True
-    # now check self-intersections of other quads with each other
-    for i,quad in enumerate(other_quads):
-        for other_quad in other_quads[i:]:
-            if(does_quad_intersect_other_quad(oe.z[quad.original_edge_points],oe.r[quad.original_edge_points],oe.z[other_quad.original_edge_points],oe.r[other_quad.original_edge_points])):
-                return True
-    return False
 
 def does_coarse_mesh_intersect(oe):
     return intersections_in_segment_list(oe.define_coarse_mesh_segments())
@@ -459,28 +428,6 @@ def intersections_between_two_segment_lists(segments,other_segments):
                 return True
     return False
 
-# generalized function for checking for intersecting line segments 
-# between two quads
-# can also be used to check self-intersection
-def does_quad_intersect_other_quad(z_shape,r_shape,other_quad_z,other_quad_r):
-    n_pts = len(z_shape)
-    for i in range(n_pts): # iterate segment-by-segment
-        p1 = Point(z_shape[i-1],r_shape[i-1])
-        p2 = Point(z_shape[i],r_shape[i])
-        # now check points on all other quads
-        for j in range(len(other_quad_z)):
-            q1 = Point(other_quad_z[j-1],other_quad_r[j-1])
-            q2 = Point(other_quad_z[j],other_quad_r[j])
-            # exclude cases where segments share at least one point
-            # these are counted as intersecting by do_segments_intersect
-            # but that intersection is fine
-            ## if(p1 == q1 or p1 == q2 or p2 == q2 or p2 == q1):
-            ##     continue
-            # now handled by do_segments_intersect
-            if(do_segments_intersect(p1,p2,q1,q2)):
-                return True
-    return False
-
 # intersection if q1 and q2 are on opposite sides of p1-p2
 # and if p1 and p2 are on opposite sides of q1-q2
 # based on www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
@@ -493,7 +440,6 @@ def do_segments_intersect(p1,p2,q1,q2):
     if(cpa == 0 or cpb == 0 or cpc == 0 or cpd == 0):
         return False 
     return (cpa != cpb and cpc != cpd)
-    ## return (cross_product_sign(p1,p2,q1) != cross_product_sign(p1,p2,q2) and cross_product_sign(q1,q2,p1) != cross_product_sign(q1,q2,p2))
 
 # cross product of p1->p2 and p1->p3
 def cross_product_sign(p1,p2,p3,tol=1e-10):
@@ -501,141 +447,4 @@ def cross_product_sign(p1,p2,p3,tol=1e-10):
     if(abs(cp) < tol): # allow collinearity with some finite tolerance
         return 0
     return np.sign(cp)
-
-#######
-# outdated functions
-# redundant not not robust against all intersections
-def does_quad_intersect_anything(z_shape,r_shape,other_edges_z,other_edges_r):
-    n_pts = len(z_shape)
-    for i in range(n_pts): # iterate segment-by-segment
-        p1 = Point(z_shape[i-1],r_shape[i-1])
-        p2 = Point(z_shape[i],r_shape[i])
-        # skip immediate next segment that has a shared vertex 
-        # shared vertex = no intersection
-        # then check all following segments
-        # also skip last segment when i-1 = -1
-        end_of_range = min(n_pts,n_pts+i-1) 
-        for j in range(i+2,end_of_range):
-            q1 = Point(z_shape[j-1],r_shape[j-1])
-            q2 = Point(z_shape[j],r_shape[j])
-            if(do_segments_intersect(p1,p2,q1,q2) == True):
-                return True
-        # now chec points on all other quads
-        for j in range(len(other_edges_z)):
-            q1 = Point(other_edges_z[j-1],other_edges_r[j-1])
-            q2 = Point(other_edges_z[j],other_edges_r[j])
-            if(do_segments_intersect(p1,p2,q1,q2) == True):
-                return True
-    return False
-
-# works, now redundant
-def is_quad_self_intersecting(z_shape,r_shape):
-    # z_shape,r_shape = np.split(shape,2)
-    n_pts = len(z_shape)
-    for i in range(n_pts): # iterate segment-by-segment
-        p1 = Point(z_shape[i-1],r_shape[i-1])
-        p2 = Point(z_shape[i],r_shape[i])
-        # skip immediate next segment that has a shared vertex 
-        # shared vertex = no intersection
-        # then check all following segments
-        # also skip last segment when i-1 = -1
-        end_of_range = min(n_pts,n_pts+i-1) 
-        for j in range(i+2,end_of_range):
-            q1 = Point(z_shape[j-1],r_shape[j-1])
-            q2 = Point(z_shape[j],r_shape[j])
-            if(do_segments_intersect(p1,p2,q1,q2) == True):
-                return True
-    return False
-
-def quad_and_other_edge_points(oe,n_quad):
-    quad_edge_points = oe.retrieve_single_quad_edge_points(oe.mag_mat_z_indices[n_quad],oe.mag_mat_r_indices[n_quad])
-    all_mag_mat_edge_points = oe.retrieve_edge_points(oe.mag_mat_z_indices,oe.mag_mat_r_indices)
-    coil_edge_points = oe.retrieve_edge_points(oe.coil_z_indices,oe.coil_r_indices)
-    other_mag_mat_edge_points = [point for point in all_mag_mat_edge_points if point not in quad_edge_points]
-    other_edge_points = coil_edge_points + other_mag_mat_edge_points
-    tmp_other = np.array(other_edge_points)
-    other_edge_points = (tmp_other[:,0],tmp_other[:,1])
-    tmp_quad = np.array(quad_edge_points)
-    quad_edge_points = (tmp_quad[:,0],tmp_quad[:,1])
-    return quad_edge_points,other_edge_points
-
-# redundant
-# calls does_quad_intersect_anything, which is not robust to all intersections
-def optimize_single_mag_mat_shape(oe,n_quad,z_min=None,z_max=None,r_min=None,r_max=None,maxiter=100):
-    oe.verbose = False
-    edge_points,other_edge_points = quad_and_other_edge_points(oe,n_quad)
-    initial_shape = np.concatenate((oe.z[edge_points],oe.r[edge_points]))
-    other_edge_shape = (oe.z[other_edge_points],oe.r[other_edge_points])
-    n = len(oe.z[edge_points])
-    bounds = [(z_min,z_max)]*n+[(r_min,r_max)]*n
-    result = minimize(change_shape_and_calculate,initial_shape,args=(oe,edge_points,other_edge_shape),bounds=bounds,method='TNC',options={'eps':0.5,'stepmx':5,'minfev':1,'maxiter':maxiter,'disp':True})
-    print('Optimization complete with success flag {}'.format(result.success))
-    print(result.message)
-    change_shape_and_calculate(result.x,oe,edge_points,other_edge_shape)
-
-# calls does_quad_intersect_anything, which is not robust to all intersections
-def change_shape_and_calculate(shape,oe,edge_points,other_edges):
-    z_shape,r_shape = np.split(np.array(shape),2) # added np.array for skopt
-    other_edges_z,other_edges_r = other_edges
-    # hacky binary constraints
-    if(does_quad_intersect_anything(z_shape,r_shape,other_edges_z,other_edges_r)):
-        return 10000
-    oe.z[edge_points] = z_shape
-    oe.r[edge_points] = r_shape
-    return calculate_c3(oe,t=TimeoutCheck())
-
-# calls does_quad_intersect_anything, which is not robust to all intersections
-class OptimizeSingleMagMatShape:
-    def __init__(self,oe,n_quad,z_min=None,z_max=None,r_min=None,r_max=None,c3=None,n_random_starts=100,n_calls=200):
-        self.oe = oe
-        oe.verbose = False
-        self.edge_points,other_edge_points = quad_and_other_edge_points(oe,n_quad)
-        initial_shape = np.concatenate((oe.z[self.edge_points],oe.r[self.edge_points])).tolist()
-        self.other_edge_shape = (oe.z[other_edge_points],oe.r[other_edge_points])
-        n = len(oe.z[self.edge_points])
-        bounds = [(z_min,z_max)]*n+[(r_min,r_max)]*n
-        result = self.minimize(initial_shape,bounds,c3,n_random_starts,n_calls)
-        # print('Optimization complete with success flag {}'.format(result.success))
-        # print(result.message)
-        print('Optimization complete.')
-        self.change_shape_and_calculate(result.x)
-
-    
-    def minimize(self,initial_shape,bounds,c3,n_random_starts,n_calls):
-        return gbrt_minimize(self.change_shape_and_calculate,dimensions=bounds,x0=initial_shape,y0=c3,n_random_starts=n_random_starts,n_calls=n_calls)
-    
-    def change_shape_and_calculate(self,shape):
-        z_shape,r_shape = np.split(np.array(shape),2)
-        other_edges_z,other_edges_r = self.other_edge_shape
-        # hacky binary constraints
-        if(does_quad_intersect_anything(z_shape,r_shape,other_edges_z,other_edges_r)):
-            return 10000
-        self.oe.z[self.edge_points] = z_shape
-        self.oe.r[self.edge_points] = r_shape
-        return calculate_c3(self.oe,t=TimeoutCheck())
-
-# list version is better
-def find_mirrored_edge_points_array(oe,edge_points):
-    if 0 in oe.z[edge_points]:
-        ind = np.nonzero(oe.z[edge_points] == 0)
-        mirrored_edge_points = (edge_points[0][ind],edge_points[1][ind])
-        edge_points = (np.delete(edge_points[0],ind),np.delete(edge_points[1],ind))
-        return mirrored_edge_points,edge_points
-    else:
-        return None,edge_points
-
-# broken by later changes to change_shape_and_calculate
-# (no intersection checks)
-def optimize_mag_mat_shape(oe,z_min=None,z_max=None,r_min=None,r_max=None):
-    oe.verbose = False
-    edge_points = oe.retrieve_edge_points(oe.mag_mat_z_indices,oe.mag_mat_r_indices,return_ind_array=True)
-    initial_shape = np.concatenate((oe.z[edge_points],oe.r[edge_points]))
-    n = len(oe.z[edge_points])
-    bounds = [(z_min,z_max)]*n+[(r_min,r_max)]*n
-    result = minimize(change_shape_and_calculate,initial_shape,args=(oe,edge_points),bounds=bounds,method='TNC',options={'eps':0.5,'stepmx':5,'minfev':1,'disp':True})
-    print('Optimization complete with success flag {}'.format(result.success))
-    print(result.message)
-    change_shape_and_calculate(result.x,oe,edge_points)
-    # oe.write(oe.filename)
-
 
