@@ -11,13 +11,13 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from optical_element_io import cd,index_array_from_list
-from optical_element_io import Point
+# from optical_element_io import Point
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 import asyncio
-# from sympy import *
-# from sympy.geometry import *
+from sympy import *
+from sympy.geometry import *
 
 class TimeoutCheck:
     def __init__(self):
@@ -343,10 +343,13 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enfor
         oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
     if(enforce_bounds):
         if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
+            print('bounds')
             return True
     if(does_coarse_mesh_intersect(oe) or does_fine_mesh_intersect_coarse(oe)):
+        print('intersection')
         return True
     if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,quads,other_quads)):
+        print('field')
         return True
     return False
 
@@ -394,6 +397,8 @@ def max_field(quad,other_quad,oe):
     delta_V = np.abs(oe.V[quad.electrode_index] - oe.V[other_quad.electrode_index])
     return delta_V/min_distance(quad,other_quad,oe)
 
+# does not take curvature into account
+# probably okay except in maximum curvature cases
 def min_distance(quad,other_quad,oe):
     delta_z = oe.z[quad.edge_points][:,np.newaxis] - oe.z[other_quad.edge_points][np.newaxis,:]
     delta_r = oe.r[quad.edge_points][:,np.newaxis] - oe.r[other_quad.edge_points][np.newaxis,:]
@@ -401,7 +406,10 @@ def min_distance(quad,other_quad,oe):
     return np.min(distance)
 
 def does_coarse_mesh_intersect(oe):
-    return intersections_in_segment_list(oe.define_coarse_mesh_segments())
+    try:
+        return intersections_in_segment_list(oe.define_coarse_mesh_segments())
+    except ValueError: # not really an intersection, but still not a valid mesh
+        return True
 
 # always returns true with present definition of fine mesh
 def does_fine_mesh_intersect(oe):
@@ -410,7 +418,7 @@ def does_fine_mesh_intersect(oe):
 def intersections_in_segment_list(segments):
     for i,segment in enumerate(segments):
         for other_segment in segments[i+1:]:
-            if(do_segments_intersect(*segment,*other_segment)):
+            if(segment.intersects(other_segment)):
                 return True
     return False
 
@@ -424,7 +432,7 @@ def does_fine_mesh_intersect_coarse(oe):
 def intersections_between_two_segment_lists(segments,other_segments):
     for segment in segments:
         for other_segment in other_segments:
-            if(do_segments_intersect(*segment,*other_segment)):
+            if(segment.intersects(other_segment)):
                 return True
     return False
 

@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from scipy.interpolate import interp2d
+from sympy import *
+from sympy.geometry import *
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -36,17 +38,6 @@ def cd(newdir):
     finally:
         os.chdir(prevdir)
 
-class Point(object):
-    def __init__(self,z,r):
-        self.z = z
-        self.r = r
-
-    def print(self):
-        print(f"z: {self.z}, r: {self.r}")
-
-    def __eq__(self,other):
-        return self.__dict__ == other.__dict__
-        
 def np_indices(indices,index_set):
     np_index_array = []
     for index in index_set:
@@ -76,6 +67,99 @@ def check_len_multi(string,colwidth):
         if(len(item) >= colwidth):
           raise Exception('Error: zero space between columns. Increase column width and rerun.')
     return string
+
+class MEBSSegment:
+    
+    def __init__(self,point_a,point_b,curvature=0):
+        self.point_a = point_a
+        self.point_b = point_b
+        if(curvature and curvature != np.inf):
+            self.arc = True
+            self.radius = curvature
+            c_a = Circle(point_a,curvature)
+            c_b = Circle(point_b,curvature)
+            centers = intersection(c_a,c_b)
+            if(centers):
+                if(len(centers) == 2):
+                    t1 = Triangle(point_a,centers[0],point_b)
+                    t2 = Triangle(point_a,centers[1],point_b)
+                    # z curvature > 0 means triangle should be ccw
+                    # r curvature > 0 means triangle should be ccw
+                    # ccw = positive area
+                    if(sign(t1.area) == sign(curvature)):
+                        self.center = centers[0]
+                    elif(sign(t2.area) == sign(curvature)): # should be unnecessary
+                        self.center = centers[1]
+                else: # len(centers) = 1, so circles touch at one point
+                    self.center = centers[0]
+                self.shape = Circle(self.center,self.radius)
+            else:
+                raise ValueError('Curvature is smaller than half the distance between points!')
+        else:
+            self.arc = False
+            self.shape = Segment(self.point_a,self.point_b)
+
+    def intersects(self,segment):
+        intersections = intersection(self.shape,segment.shape)
+        real_intersections = []
+        if(intersections):
+            if(isinstance(intersections[0],Segment2D)):
+                return False # collinear
+
+            # tree for different kinds of intersections
+            # line-line
+            if(self.arc == False and segment.arc == False):
+                real_intersections = intersections
+            # arc-line
+            elif(self.arc == True and segment.arc == False):
+                for x in intersections:
+                    if(self.orientation(x) != self.orientation(self.center)): 
+                        real_intersections.append(x)
+            # line-arc
+            elif(self.arc == False and segment.arc == True):
+                for x in intersections:
+                    if(segment.orientation(x) != segment.orientation(segment.center)): 
+                        real_intersections.append(x)
+            # arc-arc
+            elif(self.arc == True and segment.arc == True):
+                for x in intersections:
+                    if(self.orientation(x) != self.orientation(self.center) and 
+                       segment.orientation(x) != segment.orientation(segment.center)):
+                        real_intersections.append(x)
+            if([x for x in real_intersections if x in [self.point_a,self.point_b,segment.point_a,segment.point_b]] == real_intersections):
+                # if all elements of real_intersections are just ends of the two
+                # segments, this is just collinearity
+                return False
+            else:
+                return True
+        else:
+            return False
+
+    def orientation(self,point):
+        try:
+            return sign(Triangle(self.point_a,self.point_b,point).area)
+        except AttributeError:
+            # points are collinear and unfortunately sympy casts zero-area Triangle to Segment2D
+            return 0 
+
+# only here for bug-checking above class
+def do_segments_intersect(p1,p2,q1,q2):
+    cpa = cross_product_sign(p1,p2,q1)
+    cpb = cross_product_sign(p1,p2,q2)
+    cpc = cross_product_sign(q1,q2,p1)
+    cpd = cross_product_sign(q1,q2,p2)
+    # counting collinear points as non-intersecting
+    if(cpa == 0 or cpb == 0 or cpc == 0 or cpd == 0):
+        return False 
+    return (cpa != cpb and cpc != cpd)
+
+def cross_product_sign(p1,p2,p3,tol=1e-10):
+    cp = (p2.x-p1.x)*(p3.y-p1.y) - (p3.x-p1.x)*(p2.y-p1.y)
+    if(abs(cp) < tol): # allow collinearity with some finite tolerance
+        return 0
+    return np.sign(cp)
+
+
 
 class OpticalElement:
     '''
@@ -152,15 +236,7 @@ class OpticalElement:
             seconds to wait before killing MEBS programs.
             default 10 minutes.
     '''
-    # output = 2
-    # axsym = 1
-    # title = 'optical element'
-    # r_indices = np.array([])
-    # z_indices = np.array([])
-    # r = np.array([[]])
-    # z = np.array([[]])
     
-    ## infile = []
     colwidth = 12 # width of columns in written .dat files
     sp = " "*colwidth 
     int_fmt = Template("{:${colwidth}d}").substitute(colwidth=colwidth)
@@ -409,6 +485,7 @@ class OpticalElement:
         plt.gca().set_aspect('equal')
         plt.show()
 
+    # does not take curvature into account
     def add_mesh_to_plot(self,index_labels=True,adj=6):
         for n in range(self.z.shape[0]):
             if(index_labels):
@@ -482,6 +559,7 @@ class OpticalElement:
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
+    # does not take curvature into account!
     def determine_quad_area(self,quad_z_indices,quad_r_indices):
         points = self.retrieve_single_quad_edge_points(quad_z_indices,quad_r_indices,return_ind_array=True)
         return calculate_area(self.z[points],self.r[points])
@@ -492,9 +570,9 @@ class OpticalElement:
         for i in range(self.z.shape[0]):
             for j in range(self.z.shape[1]):
                 if(i+1 < self.z.shape[0]):
-                    segments.append((Point(self.z[i,j],self.r[i,j]),Point(self.z[i+1,j],self.r[i+1,j])))
+                    segments.append(MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i+1,j],self.r[i+1,j]),self.z_curv[i,j]))
                 if(j+1 < self.z.shape[1]):
-                    segments.append((Point(self.z[i,j],self.r[i,j]),Point(self.z[i,j+1],self.r[i,j+1])))
+                    segments.append(MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i,j+1],self.r[i,j+1]),self.r_curv[i,j]))
         self.coarse_segments = segments
         return segments
 
@@ -502,36 +580,34 @@ class OpticalElement:
         segments = []
         r_interpolator = interp2d(self.z_indices,self.r_indices,self.r)
         z_interpolator = interp2d(self.z_indices,self.r_indices,self.z)
+        r_curv_phys = np.copy(self.r_curv)
+        # curvature = 0 actually means infinite radius, so make that explicit
+        r_curv_phys[self.r_curv == 0] = np.inf
+        # interpolate the inverse radius
+        inv_r_curv = 1.0/r_curv_phys
+        z_curv_phys = np.copy(self.z_curv)
+        z_curv_phys[self.z_curv == 0] = np.inf
+        inv_z_curv = 1.0/z_curv_phys
+        inv_r_curv_interpolator = interp2d(self.z_indices,self.r_indices,inv_r_curv)
+        inv_z_curv_interpolator = interp2d(self.z_indices,self.r_indices,inv_z_curv)
         # MEBS uses half-integer steps for the fine mesh
         step = 0.5
         for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
             # make coarse mesh-sized segments from fine mesh
             # skip last point as second point in segment doesn't exist
             for i,z_index in enumerate(self.z_indices[:-1]):
-                segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(self.z_indices[i+1],r_index),r_interpolator(self.z_indices[i+1],r_index))))
+                inv_curv = np.asscalar(inv_r_curv_interpolator(z_index,r_index))
+                curv = 1.0/inv_curv if inv_curv != 0 else 0
+                segments.append(MEBSSegment(Point(np.asscalar(z_interpolator(z_index,r_index)),np.asscalar(r_interpolator(z_index,r_index))),Point(np.asscalar(z_interpolator(self.z_indices[i+1],r_index)),np.asscalar(r_interpolator(self.z_indices[i+1],r_index))),curv))
         for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
             for i,r_index in enumerate(self.r_indices[:-1]):
-                segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index,self.r_indices[i+1]),r_interpolator(z_index,self.r_indices[i+1]))))
+                inv_curv = np.asscalar(inv_z_curv_interpolator(z_index,r_index))
+                curv = 1.0/inv_curv if inv_curv != 0 else 0
+                segments.append(MEBSSegment(Point(np.asscalar(z_interpolator(z_index,r_index)),np.asscalar(r_interpolator(z_index,r_index))),Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),np.asscalar(r_interpolator(z_index,self.r_indices[i+1]))),curv))
         self.fine_segments = segments
         return segments
 
-    # makes the smallest possible fine mesh segments
-    # not useful except for finding fine-fine intersections
-    def define_exhaustive_fine_mesh_segments(self):
-        segments = []
-        r_interpolator = interp2d(self.z_indices,self.r_indices,self.r)
-        z_interpolator = interp2d(self.z_indices,self.r_indices,self.z)
-        # MEBS uses half-integer steps for the fine mesh
-        step = 0.5
-        for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
-            for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
-                if(r_index < self.r_indices[-1]):
-                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index,r_index+step),r_interpolator(z_index,r_index+step))))
-                if(z_index < self.z_indices[-1]):
-                    segments.append((Point(z_interpolator(z_index,r_index),r_interpolator(z_index,r_index)),Point(z_interpolator(z_index+step,r_index),r_interpolator(z_index+step,r_index))))
-        self.fine_segments = segments
-        return segments
-
+    # doesn't take into account curvature
     def plot_quad(self,z_indices,r_indices,color='k'):
         for seg in self.retrieve_segments(z_indices,r_indices):
             plt.plot(self.z[seg],self.r[seg],color=color)
