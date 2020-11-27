@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from scipy.interpolate import interp2d
-from sympy import *
-from sympy.geometry import *
+from shapely.geometry import *
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -75,72 +74,36 @@ class MEBSSegment:
         self.point_b = point_b
         if(curvature and curvature != np.inf):
             self.arc = True
-            self.radius = curvature
-            c_a = Circle(point_a,curvature)
-            c_b = Circle(point_b,curvature)
-            centers = intersection(c_a,c_b)
-            if(centers):
-                if(len(centers) == 2):
-                    t1 = Triangle(point_a,centers[0],point_b)
-                    t2 = Triangle(point_a,centers[1],point_b)
-                    # z curvature > 0 means triangle should be ccw
-                    # r curvature > 0 means triangle should be ccw
-                    # ccw = positive area
-                    if(sign(t1.area) == sign(curvature)):
-                        self.center = centers[0]
-                    elif(sign(t2.area) == sign(curvature)): # should be unnecessary
-                        self.center = centers[1]
-                else: # len(centers) = 1, so circles touch at one point
-                    self.center = centers[0]
-                self.shape = Circle(self.center,self.radius)
-            else:
-                raise ValueError('Curvature is smaller than half the distance between points!')
+            self.radius = np.abs(curvature)
+            curv_sign = np.sign(curvature)
+            center_angle = np.arccos(0.5*self.point_a.distance(self.point_b)/self.radius)
+            if(np.isnan(center_angle)):
+                raise ValueError('Curvature smaller than half the distance between points.') # no intersection
+            rel_angle = np.arctan2(self.point_b.y-self.point_a.y,self.point_b.x-self.point_a.x)
+            tot_angle = rel_angle-curv_sign*center_angle
+            # curvature > 0 means point_A-center vector is at a negative angle w.r.t point_a-point_b vector
+            self.center = Point(self.point_a.x+self.radius*np.cos(tot_angle),self.point_a.y+self.radius*np.sin(tot_angle))
+            theta_a = np.arctan2(self.point_a.y-self.center.y,self.point_a.x-self.center.x)
+            theta_b = np.arctan2(self.point_b.y-self.center.y,self.point_b.x-self.center.x)
+            if(theta_a-theta_b > np.pi):
+                theta_b += 2*np.pi
+            elif(theta_b-theta_a > np.pi):
+                theta_b -= 2*np.pi
+            theta_range = np.linspace(theta_a,theta_b,100,endpoint=True)
+            # theta_a = theta_a + 2*np.pi if theta_a < 0 else theta_a
+            # theta_b = theta_b - 2*np.pi if theta_b > 0 else theta_b
+            # if(curvature > 0):
+            #     theta_range = np.linspace(theta_a,theta_b,100,endpoint=True)
+            # else:
+            #     theta_range = np.linspace(theta_b,theta_a,100,endpoint=True)
+            np_arc = np.zeros((len(theta_range),2),dtype=float)
+            np_arc[:,0] = self.center.x+self.radius*np.cos(theta_range)
+            np_arc[:,1] = self.center.y+self.radius*np.sin(theta_range)
+            self.shape = asLineString(np_arc)
         else:
             self.arc = False
-            self.shape = Segment(self.point_a,self.point_b)
+            self.shape = LineString([self.point_a,self.point_b])
 
-    def intersects(self,segment):
-        intersections = intersection(self.shape,segment.shape)
-        real_intersections = []
-        if(intersections):
-            if(isinstance(intersections[0],Segment2D)):
-                return False # collinear
-
-            # tree for different kinds of intersections
-            # line-line
-            if(self.arc == False and segment.arc == False):
-                real_intersections = intersections
-            # arc-line
-            elif(self.arc == True and segment.arc == False):
-                for x in intersections:
-                    if(self.orientation(x) != self.orientation(self.center)): 
-                        real_intersections.append(x)
-            # line-arc
-            elif(self.arc == False and segment.arc == True):
-                for x in intersections:
-                    if(segment.orientation(x) != segment.orientation(segment.center)): 
-                        real_intersections.append(x)
-            # arc-arc
-            elif(self.arc == True and segment.arc == True):
-                for x in intersections:
-                    if(self.orientation(x) != self.orientation(self.center) and 
-                       segment.orientation(x) != segment.orientation(segment.center)):
-                        real_intersections.append(x)
-            if([x for x in real_intersections if x in [self.point_a,self.point_b,segment.point_a,segment.point_b]] == real_intersections):
-                # if all elements of real_intersections are just ends of the two
-                # segments, this is just collinearity
-                return False
-            else:
-                return True
-        else:
-            return False
-
-    def orientation(self,point):
-        try:
-            return sign(Triangle(self.point_a,self.point_b,point).area)
-        except AttributeError:
-            # points are collinear and unfortunately sympy casts zero-area Triangle to Segment2D
-            return 0 
 
 # only here for bug-checking above class
 def do_segments_intersect(p1,p2,q1,q2):

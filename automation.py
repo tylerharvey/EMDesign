@@ -16,8 +16,9 @@ from calculate_optical_properties import calc_properties_optics, calc_properties
 from scipy.optimize import minimize
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 import asyncio
-from sympy import *
-from sympy.geometry import *
+# from sympy import *
+# from sympy.geometry import *
+from shapely.geometry import *
 
 class TimeoutCheck:
     def __init__(self):
@@ -343,13 +344,13 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enfor
         oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
     if(enforce_bounds):
         if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
-            print('bounds')
+            # print('bounds')
             return True
     if(does_coarse_mesh_intersect(oe) or does_fine_mesh_intersect_coarse(oe)):
-        print('intersection')
+        # print('intersection')
         return True
     if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,quads,other_quads)):
-        print('field')
+        # print('field')
         return True
     return False
 
@@ -408,7 +409,7 @@ def min_distance(quad,other_quad,oe):
 def does_coarse_mesh_intersect(oe):
     try:
         return intersections_in_segment_list(oe.define_coarse_mesh_segments())
-    except ValueError: # not really an intersection, but still not a valid mesh
+    except ValueError: # curvature too high; not really an intersection, but still not a valid mesh
         return True
 
 # always returns true with present definition of fine mesh
@@ -418,7 +419,7 @@ def does_fine_mesh_intersect(oe):
 def intersections_in_segment_list(segments):
     for i,segment in enumerate(segments):
         for other_segment in segments[i+1:]:
-            if(segment.intersects(other_segment)):
+            if(segment.shape.crosses(other_segment.shape)):
                 return True
     return False
 
@@ -432,7 +433,7 @@ def does_fine_mesh_intersect_coarse(oe):
 def intersections_between_two_segment_lists(segments,other_segments):
     for segment in segments:
         for other_segment in other_segments:
-            if(segment.intersects(other_segment)):
+            if(segment.shape.crosses(other_segment.shape)):
                 return True
     return False
 
