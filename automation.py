@@ -344,13 +344,16 @@ def change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enfor
         oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
     if(enforce_bounds):
         if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
-            # print('bounds')
+            print('bounds')
             return True
-    if(does_coarse_mesh_intersect(oe) or does_fine_mesh_intersect_coarse(oe)):
-        # print('intersection')
+    if(does_coarse_mesh_intersect(oe)):
+        print('coarse intersection')
+        return True
+    if(does_fine_mesh_intersect_coarse(oe)):
+        print('fine intersection')
         return True
     if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,quads,other_quads)):
-        # print('field')
+        print('field')
         return True
     return False
 
@@ -420,6 +423,16 @@ def intersections_in_segment_list(segments):
     for i,segment in enumerate(segments):
         for other_segment in segments[i+1:]:
             if(segment.shape.crosses(other_segment.shape)):
+                # print(segment.shape)
+                # print(other_segment.shape)
+                # print(list(segment.shape.coords))
+                # print(list(other_segment.shape.coords))
+                # print('crosses:',segment.shape.crosses(other_segment.shape))
+                # x,y = segment.shape.xy
+                # plt.plot(x,y)
+                # x,y = other_segment.shape.xy
+                # plt.plot(x,y)
+                # plt.show()
                 return True
     return False
 
@@ -434,7 +447,23 @@ def intersections_between_two_segment_lists(segments,other_segments):
     for segment in segments:
         for other_segment in other_segments:
             if(segment.shape.crosses(other_segment.shape)):
-                return True
+                intersection_point = segment.shape.intersection(other_segment.shape)
+                if([point for point in segment.shape.boundary if point.almost_equals(intersection_point)] or
+                   [point for point in other_segment.shape.boundary if point.almost_equals(intersection_point)]):
+                    # print('continuing')
+                    continue
+                else:
+                    print(segment.shape)
+                    print(other_segment.shape)
+                    print(list(segment.shape.coords))
+                    print(list(other_segment.shape.coords))
+                    x,y = segment.shape.xy
+                    plt.plot(x,y)
+                    x,y = other_segment.shape.xy
+                    plt.plot(x,y)
+                    plt.gca().set_aspect('equal')
+                    plt.show()
+                    return True
     return False
 
 # intersection if q1 and q2 are on opposite sides of p1-p2

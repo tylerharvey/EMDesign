@@ -561,12 +561,29 @@ class OpticalElement:
             for i,z_index in enumerate(self.z_indices[:-1]):
                 inv_curv = np.asscalar(inv_r_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
-                segments.append(MEBSSegment(Point(np.asscalar(z_interpolator(z_index,r_index)),np.asscalar(r_interpolator(z_index,r_index))),Point(np.asscalar(z_interpolator(self.z_indices[i+1],r_index)),np.asscalar(r_interpolator(self.z_indices[i+1],r_index))),curv))
+                segments.append(MEBSSegment(
+                    Point(np.asscalar(z_interpolator(z_index,r_index)),
+                        np.asscalar(r_interpolator(z_index,r_index))),
+                    Point(np.asscalar(z_interpolator(self.z_indices[i+1],r_index)),
+                        np.asscalar(r_interpolator(self.z_indices[i+1],r_index))),curv))
+                    # Point(np.asscalar(np.round(z_interpolator(z_index,r_index),self.coord_precision)),
+                    #     np.asscalar(np.round(r_interpolator(z_index,r_index),self.coord_precision))),
+                    # Point(np.asscalar(np.round(z_interpolator(self.z_indices[i+1],r_index),self.coord_precision)),
+                    #     np.asscalar(np.round(r_interpolator(self.z_indices[i+1],r_index),self.coord_precision))),curv))
+                    # rounding is important to minimize false intersections
         for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
             for i,r_index in enumerate(self.r_indices[:-1]):
                 inv_curv = np.asscalar(inv_z_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
-                segments.append(MEBSSegment(Point(np.asscalar(z_interpolator(z_index,r_index)),np.asscalar(r_interpolator(z_index,r_index))),Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),np.asscalar(r_interpolator(z_index,self.r_indices[i+1]))),curv))
+                segments.append(MEBSSegment(
+                    Point(np.asscalar(z_interpolator(z_index,r_index)),
+                        np.asscalar(r_interpolator(z_index,r_index))),
+                    Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),
+                        np.asscalar(r_interpolator(z_index,self.r_indices[i+1]))),curv))
+                    # Point(np.asscalar(np.round(z_interpolator(z_index,r_index),self.coord_precision)),
+                    #     np.asscalar(np.round(r_interpolator(z_index,r_index),self.coord_precision))),
+                    # Point(np.asscalar(np.round(z_interpolator(z_index,self.r_indices[i+1]),self.coord_precision)),
+                    #     np.asscalar(np.round(r_interpolator(z_index,self.r_indices[i+1]),self.coord_precision))),curv))
         self.fine_segments = segments
         return segments
 
