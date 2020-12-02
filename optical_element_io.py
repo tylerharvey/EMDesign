@@ -7,6 +7,7 @@ from string import Template
 from contextlib import contextmanager
 from scipy.interpolate import interp2d
 from shapely.geometry import *
+from scipy.interpolate import interp1d
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -42,6 +43,10 @@ def np_indices(indices,index_set):
     for index in index_set:
         np_index_array.append(np.nonzero(indices == index)[0][0]) # should find way to parallelize with nonzero
     return np.array(np_index_array)
+
+def last_np_index(indices,index):
+    l = indices[indices < index]
+    return len(l)-1 if len(l) > 0 else 0
 
 # takes a list of np indices np_list = [(1,0),(2,5),...]
 # and casts to a format that can be used for numpy indexing
@@ -89,7 +94,7 @@ class MEBSSegment:
                 theta_b += 2*np.pi
             elif(theta_b-theta_a > np.pi):
                 theta_b -= 2*np.pi
-            theta_range = np.linspace(theta_a,theta_b,100,endpoint=True)
+            theta_range = np.linspace(theta_a,theta_b,101,endpoint=True)
             # theta_a = theta_a + 2*np.pi if theta_a < 0 else theta_a
             # theta_b = theta_b - 2*np.pi if theta_b > 0 else theta_b
             # if(curvature > 0):
@@ -103,6 +108,16 @@ class MEBSSegment:
         else:
             self.arc = False
             self.shape = LineString([self.point_a,self.point_b])
+
+    def interp(self,t):
+        if(not hasattr(self,'z')):
+            z,r = self.shape.xy
+            T = np.arange(len(z))
+            T = T/T.max()
+            self.z = interp1d(T,z)
+            self.r = interp1d(T,r)
+        return np.asscalar(self.z(t)),np.asscalar(self.r(t))
+
 
 
 # only here for bug-checking above class
@@ -571,15 +586,15 @@ class OpticalElement:
 
     # collect all segments in the coarse mesh into a list
     def define_coarse_mesh_segments(self):
-        segments = []
+        segments = np.empty(self.z.shape+(2,),dtype=np.object)
         for i in range(self.z.shape[0]):
             for j in range(self.z.shape[1]):
                 if(i+1 < self.z.shape[0]):
-                    segments.append(MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i+1,j],self.r[i+1,j]),self.z_curv[i,j]))
+                    segments[i,j,0] = MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i+1,j],self.r[i+1,j]),self.z_curv[i,j])
                 if(j+1 < self.z.shape[1]):
-                    segments.append(MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i,j+1],self.r[i,j+1]),self.r_curv[i,j]))
+                    segments[i,j,1] = MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i,j+1],self.r[i,j+1]),self.r_curv[i,j])
         self.coarse_segments = segments
-        return segments
+        return segments.flatten()
 
     def define_fine_mesh_segments(self):
         segments = []
@@ -597,35 +612,58 @@ class OpticalElement:
         inv_z_curv_interpolator = interp2d(self.z_indices,self.r_indices,inv_z_curv)
         # MEBS uses half-integer steps for the fine mesh
         step = 0.5
+        # first, longtudinal fine mesh segments
         for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
+            # find numpy index of last passed point in self.r_indices
+            i = last_np_index(self.r_indices,r_index)
+            # t is the percentage along the radial segment 
+            # at which this longitudinal fine segment begins
+            t = (r_index-self.r_indices[i])/(self.r_indices[i+1]-self.r_indices[i])
             # make coarse mesh-sized segments from fine mesh
             # skip last point as second point in segment doesn't exist
-            for i,z_index in enumerate(self.z_indices[:-1]):
+            for j,z_index in enumerate(self.z_indices[:-1]):
                 inv_curv = np.asscalar(inv_r_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
-                segments.append(MEBSSegment(
-                    Point(np.asscalar(z_interpolator(z_index,r_index)),
-                        np.asscalar(r_interpolator(z_index,r_index))),
-                    Point(np.asscalar(z_interpolator(self.z_indices[i+1],r_index)),
-                        np.asscalar(r_interpolator(self.z_indices[i+1],r_index))),curv))
-                    # Point(np.asscalar(np.round(z_interpolator(z_index,r_index),self.coord_precision)),
-                    #     np.asscalar(np.round(r_interpolator(z_index,r_index),self.coord_precision))),
-                    # Point(np.asscalar(np.round(z_interpolator(self.z_indices[i+1],r_index),self.coord_precision)),
-                    #     np.asscalar(np.round(r_interpolator(self.z_indices[i+1],r_index),self.coord_precision))),curv))
-                    # rounding is important to minimize false intersections
+                if(self.z_curv[i,j] != 0):
+                        #inv_z_curv_interpolator(z_index,r_index) != np.inf):
+                    # deal with curvature of radial segment on which point_a lies
+                    point_a = Point(self.coarse_segments[i,j,0].interp(t))
+                else:
+                    point_a = Point(np.asscalar(z_interpolator(z_index,r_index)),
+                                    np.asscalar(r_interpolator(z_index,r_index)))
+                if(self.z_curv[i,j+1] != 0):
+                        # inv_z_curv_interpolator(self.z_indices[j+1],r_index) != np.inf):
+                    # deal with curvature of radial segment on which point_b lies
+                    point_b = Point(self.coarse_segments[i,j+1,0].interp(t))
+                else:
+                    point_b = Point(np.asscalar(z_interpolator(self.z_indices[j+1],r_index)),
+                                    np.asscalar(r_interpolator(self.z_indices[j+1],r_index)))
+
+                segments.append(MEBSSegment(point_a,point_b,curv))
+        # now, radial fine mesh segments
         for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
+            # find numpy index of last passed point in self.z_indices
+            j = last_np_index(self.z_indices,z_index)
+            # t is the percentage along the longitudinal segment 
+            # at which this radial fine segment begins
+            t = (z_index-self.z_indices[i])/(self.z_indices[i+1]-self.z_indices[i])
             for i,r_index in enumerate(self.r_indices[:-1]):
                 inv_curv = np.asscalar(inv_z_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
-                segments.append(MEBSSegment(
-                    Point(np.asscalar(z_interpolator(z_index,r_index)),
-                        np.asscalar(r_interpolator(z_index,r_index))),
-                    Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),
-                        np.asscalar(r_interpolator(z_index,self.r_indices[i+1]))),curv))
-                    # Point(np.asscalar(np.round(z_interpolator(z_index,r_index),self.coord_precision)),
-                    #     np.asscalar(np.round(r_interpolator(z_index,r_index),self.coord_precision))),
-                    # Point(np.asscalar(np.round(z_interpolator(z_index,self.r_indices[i+1]),self.coord_precision)),
-                    #     np.asscalar(np.round(r_interpolator(z_index,self.r_indices[i+1]),self.coord_precision))),curv))
+                if(self.r_curv[i,j] != 0):
+                        # inv_r_curv_interpolator(z_index,r_index) != np.inf):
+                    point_a = Point(self.coarse_segments[i,j,1].interp(t))
+                else:
+                    point_a = Point(np.asscalar(z_interpolator(z_index,r_index)),
+                                    np.asscalar(r_interpolator(z_index,r_index)))
+                if(self.r_curv[i+1,j] != 0):
+                        # inv_r_curv_interpolator(z_index,self.r_indices[i+1]) != np.inf):
+                    point_b = Point(self.coarse_segments[i+1,j,1].interp(t))
+                else:
+                    point_b = Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),
+                                    np.asscalar(r_interpolator(z_index,self.r_indices[i+1])))
+
+                segments.append(MEBSSegment(point_a,point_b,curv))
         self.fine_segments = segments
         return segments
 
