@@ -417,6 +417,37 @@ class OpticalElement:
     def write_other_blocks(self,f):
         pass
         
+    def plot_mesh_fine(self,quads_on=True,index_labels=True,adj=6,zlim=None,rlim=None):
+        '''
+        Plots fine mesh.
+
+        Optional parameters:
+            quads_on : boolean
+                determines whether magnetic materials, coils, electrodes, etc.
+                are also plotted.
+                default True
+            index_labels : boolean
+                determines whether mesh indices are labeled.
+            adj : float 
+                offset of mesh labels from matplotlib axes.
+                default 6
+            zlim : tuple or list of two floats
+                sets matplotlib xlim to zoom in on region of the z axis.
+                generally looks horrible with index_labels=True.
+            rlim : tuple or list of two floats
+                sets matplotlib ylim to zoom in on region of th r axis.
+                generally looks horrible with index_labels=True.
+        '''
+        plt.figure(figsize=(15,15))
+        self.add_fine_mesh_to_plot()
+        self.add_quads_to_plot() if quads_on else 0
+        plt.xlabel("z (mm)")
+        plt.ylabel("r (mm)")
+        plt.xlim(zlim)
+        plt.ylim(rlim)
+        plt.gca().set_aspect('equal')
+        plt.show()
+
     def plot_mesh_coarse(self,quads_on=True,index_labels=True,adj=6,zlim=None,rlim=None):
         '''
         Plots mesh.
@@ -447,6 +478,17 @@ class OpticalElement:
         # plt.title("Mesh (coarse)")
         plt.gca().set_aspect('equal')
         plt.show()
+
+    def add_fine_mesh_to_plot(self,linewidth=0.1):
+        self.add_mesh_segments_to_plot(self.define_fine_mesh_segments(),linewidth)
+
+    def add_coarse_mesh_to_plot(self):
+        self.add_mesh_segments_to_plot(self.define_coarse_mesh_segments())
+
+    def add_mesh_segments_to_plot(self,segments,linewidth=1):
+        for segment in segments:
+            x,y = segment.shape.xy
+            plt.plot(x,y,color='m',linewidth=linewidth)
 
     # does not take curvature into account
     def add_mesh_to_plot(self,index_labels=True,adj=6):
