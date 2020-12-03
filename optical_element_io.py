@@ -7,7 +7,6 @@ from string import Template
 from contextlib import contextmanager
 from scipy.interpolate import interp2d
 from shapely.geometry import *
-from scipy.interpolate import interp1d
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -38,6 +37,7 @@ def cd(newdir):
     finally:
         os.chdir(prevdir)
 
+# orphaned, remove?
 def np_indices(indices,index_set):
     np_index_array = []
     for index in index_set:
@@ -56,9 +56,6 @@ def index_array_from_list(index_list):
         return [],[]
     tmp_array = np.array(index_list)
     return (tmp_array[:,0],tmp_array[:,1])
-
-def calculate_area(x,y):
-    return 0.5*np.abs((x[:-1]*y[1:]-x[1:]*y[:-1]).sum()+x[-1]*y[0]-x[0]*y[-1])
 
 def check_len(string,colwidth):
     if(len(string.strip()) >= colwidth):
@@ -116,14 +113,6 @@ class MEBSSegment:
                 self.arc = False
                 self.shape = LineString([self.point_a,self.point_b])
 
-    def interp(self,t):
-        if(not hasattr(self,'z')):
-            z,r = self.shape.xy
-            T = np.arange(len(z))
-            T = T/T.max()
-            self.z = interp1d(T,z)
-            self.r = interp1d(T,r)
-        return np.asscalar(self.z(t)),np.asscalar(self.r(t))
 
 # only here for bug-checking above class
 def do_segments_intersect(p1,p2,q1,q2):
@@ -523,24 +512,6 @@ class OpticalElement:
                 # add z index label
                 plt.text(self.z[np.argmax(self.r[:,n]),n],self.r[:,n].max()+adj,self.z_indices[n])
         
-    def plot_mesh_segments(self,segments,quads_on=True):
-        '''
-        Plots mesh (coarse or fine) from a list of segments (Point1,Point2).
-
-        Parameters:
-            segments : list
-                list of all segments to plot
-            quads_on : boolean
-                optional flag to also plot quads
-        '''
-        for segment in segments:
-            plt.plot([segment[0].z,segment[1].z],[segment[0].r,segment[1].r],color='m')
-        self.add_quads_to_plot() if quads_on else 0
-        plt.xlabel("z (mm)")
-        plt.ylabel("r (mm)")
-        plt.gca().set_aspect('equal')
-        plt.show()
-
     def add_quads_to_plot(self):
         pass
     
@@ -603,11 +574,6 @@ class OpticalElement:
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
-    # does not take curvature into account!
-    def determine_quad_area_old(self,quad_z_indices,quad_r_indices):
-        points = self.retrieve_single_quad_edge_points(quad_z_indices,quad_r_indices,return_ind_array=True)
-        return calculate_area(self.z[points],self.r[points])
-
     def determine_quad_area(self,quad_z_indices,quad_r_indices):
         polygon_coords = []
         for segment in self.retrieve_MEBSSegments(quad_z_indices,quad_r_indices):
@@ -658,14 +624,14 @@ class OpticalElement:
                 if(self.z_curv[i,j] != 0):
                         #inv_z_curv_interpolator(z_index,r_index) != np.inf):
                     # deal with curvature of radial segment on which point_a lies
-                    point_a = Point(self.coarse_segments[i,j,0].interp(t))
+                    point_a = Point(self.coarse_segments[i,j,0].shape.interpolate(t,normalized=True))
                 else:
                     point_a = Point(np.asscalar(z_interpolator(z_index,r_index)),
                                     np.asscalar(r_interpolator(z_index,r_index)))
                 if(self.z_curv[i,j+1] != 0):
                         # inv_z_curv_interpolator(self.z_indices[j+1],r_index) != np.inf):
                     # deal with curvature of radial segment on which point_b lies
-                    point_b = Point(self.coarse_segments[i,j+1,0].interp(t))
+                    point_b = Point(self.coarse_segments[i,j+1,0].shape.interpolate(t,normalized=True))
                 else:
                     point_b = Point(np.asscalar(z_interpolator(self.z_indices[j+1],r_index)),
                                     np.asscalar(r_interpolator(self.z_indices[j+1],r_index)))
@@ -683,13 +649,13 @@ class OpticalElement:
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
                 if(self.r_curv[i,j] != 0):
                         # inv_r_curv_interpolator(z_index,r_index) != np.inf):
-                    point_a = Point(self.coarse_segments[i,j,1].interp(t))
+                    point_a = Point(self.coarse_segments[i,j,1].shape.interpolate(t,normalized=True))
                 else:
                     point_a = Point(np.asscalar(z_interpolator(z_index,r_index)),
                                     np.asscalar(r_interpolator(z_index,r_index)))
                 if(self.r_curv[i+1,j] != 0):
                         # inv_r_curv_interpolator(z_index,self.r_indices[i+1]) != np.inf):
-                    point_b = Point(self.coarse_segments[i+1,j,1].interp(t))
+                    point_b = Point(self.coarse_segments[i+1,j,1].shape.interpolate(t,normalized=True))
                 else:
                     point_b = Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),
                                     np.asscalar(r_interpolator(z_index,self.r_indices[i+1])))
