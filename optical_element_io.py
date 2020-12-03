@@ -74,40 +74,47 @@ def check_len_multi(string,colwidth):
 
 class MEBSSegment:
     
-    def __init__(self,point_a,point_b,curvature=0):
-        self.point_a = point_a
-        self.point_b = point_b
-        if(curvature and curvature != np.inf):
-            self.arc = True
-            self.radius = np.abs(curvature)
-            curv_sign = np.sign(curvature)
-            center_angle = np.arccos(0.5*self.point_a.distance(self.point_b)/self.radius)
-            if(np.isnan(center_angle)):
-                raise ValueError('Curvature smaller than half the distance between points.') # no intersection
-            rel_angle = np.arctan2(self.point_b.y-self.point_a.y,self.point_b.x-self.point_a.x)
-            tot_angle = rel_angle-curv_sign*center_angle
-            # curvature > 0 means point_A-center vector is at a negative angle w.r.t point_a-point_b vector
-            self.center = Point(self.point_a.x+self.radius*np.cos(tot_angle),self.point_a.y+self.radius*np.sin(tot_angle))
-            theta_a = np.arctan2(self.point_a.y-self.center.y,self.point_a.x-self.center.x)
-            theta_b = np.arctan2(self.point_b.y-self.center.y,self.point_b.x-self.center.x)
-            if(theta_a-theta_b > np.pi):
-                theta_b += 2*np.pi
-            elif(theta_b-theta_a > np.pi):
-                theta_b -= 2*np.pi
-            theta_range = np.linspace(theta_a,theta_b,101,endpoint=True)
-            # theta_a = theta_a + 2*np.pi if theta_a < 0 else theta_a
-            # theta_b = theta_b - 2*np.pi if theta_b > 0 else theta_b
-            # if(curvature > 0):
-            #     theta_range = np.linspace(theta_a,theta_b,100,endpoint=True)
-            # else:
-            #     theta_range = np.linspace(theta_b,theta_a,100,endpoint=True)
-            np_arc = np.zeros((len(theta_range),2),dtype=float)
-            np_arc[:,0] = self.center.x+self.radius*np.cos(theta_range)
-            np_arc[:,1] = self.center.y+self.radius*np.sin(theta_range)
-            self.shape = asLineString(np_arc)
+    def __init__(self,point_a,point_b,curvature=0,prev_segment=None,reverse=False):
+        if(prev_segment):
+            if(reverse):
+                self.shape = LineString(prev_segment.shape.coords[::-1]) 
+            else: 
+                self.shape = Linestring(prev_segment.shape)
+            self.arc = prev_segment.arc
         else:
-            self.arc = False
-            self.shape = LineString([self.point_a,self.point_b])
+            self.point_a = point_a
+            self.point_b = point_b
+            if(curvature and curvature != np.inf):
+                self.arc = True
+                self.radius = np.abs(curvature)
+                curv_sign = np.sign(curvature)
+                center_angle = np.arccos(0.5*self.point_a.distance(self.point_b)/self.radius)
+                if(np.isnan(center_angle)):
+                    raise ValueError('Curvature smaller than half the distance between points.') # no intersection
+                rel_angle = np.arctan2(self.point_b.y-self.point_a.y,self.point_b.x-self.point_a.x)
+                tot_angle = rel_angle-curv_sign*center_angle
+                # curvature > 0 means point_A-center vector is at a negative angle w.r.t point_a-point_b vector
+                self.center = Point(self.point_a.x+self.radius*np.cos(tot_angle),self.point_a.y+self.radius*np.sin(tot_angle))
+                theta_a = np.arctan2(self.point_a.y-self.center.y,self.point_a.x-self.center.x)
+                theta_b = np.arctan2(self.point_b.y-self.center.y,self.point_b.x-self.center.x)
+                if(theta_a-theta_b > np.pi):
+                    theta_b += 2*np.pi
+                elif(theta_b-theta_a > np.pi):
+                    theta_b -= 2*np.pi
+                theta_range = np.linspace(theta_a,theta_b,101,endpoint=True)
+                # theta_a = theta_a + 2*np.pi if theta_a < 0 else theta_a
+                # theta_b = theta_b - 2*np.pi if theta_b > 0 else theta_b
+                # if(curvature > 0):
+                #     theta_range = np.linspace(theta_a,theta_b,100,endpoint=True)
+                # else:
+                #     theta_range = np.linspace(theta_b,theta_a,100,endpoint=True)
+                np_arc = np.zeros((len(theta_range),2),dtype=float)
+                np_arc[:,0] = self.center.x+self.radius*np.cos(theta_range)
+                np_arc[:,1] = self.center.y+self.radius*np.sin(theta_range)
+                self.shape = asLineString(np_arc)
+            else:
+                self.arc = False
+                self.shape = LineString([self.point_a,self.point_b])
 
     def interp(self,t):
         if(not hasattr(self,'z')):
@@ -117,8 +124,6 @@ class MEBSSegment:
             self.z = interp1d(T,z)
             self.r = interp1d(T,r)
         return np.asscalar(self.z(t)),np.asscalar(self.r(t))
-
-
 
 # only here for bug-checking above class
 def do_segments_intersect(p1,p2,q1,q2):
@@ -484,7 +489,9 @@ class OpticalElement:
                 sets matplotlib ylim to zoom in on region of th r axis.
                 generally looks horrible with index_labels=True.
         '''
-        self.add_mesh_to_plot(index_labels,adj)
+        plt.figure(figsize=(10,10))
+        self.add_coarse_mesh_to_plot()
+        self.add_mesh_labels_to_plot(index_labels,adj)
         self.add_quads_to_plot() if quads_on else 0
         plt.xlabel("z (mm)")
         plt.ylabel("r (mm)")
@@ -502,23 +509,19 @@ class OpticalElement:
 
     def add_mesh_segments_to_plot(self,segments,linewidth=1):
         for segment in segments:
-            x,y = segment.shape.xy
-            plt.plot(x,y,color='m',linewidth=linewidth)
+            if(segment):
+                z,r = segment.shape.xy
+                plt.plot(z,r,color='m',linewidth=linewidth)
 
-    # does not take curvature into account
-    def add_mesh_to_plot(self,index_labels=True,adj=6):
+    def add_mesh_labels_to_plot(self,index_labels=True,adj=6):
         for n in range(self.z.shape[0]):
             if(index_labels):
                 # add r index label
                 plt.text(self.z[n,:].max()+adj,self.r[n,np.argmax(self.z[n,:])],self.r_indices[n])
-            # plot this iso-r-index line
-            plt.plot(self.z[n,:],self.r[n,:],color='m')
         for n in range(self.z.shape[1]):
             if(index_labels):
                 # add z index label
                 plt.text(self.z[np.argmax(self.r[:,n]),n],self.r[:,n].max()+adj,self.z_indices[n])
-            # plot this iso-z-index line
-            plt.plot(self.z[:,n],self.r[:,n],color='m')
         
     def plot_mesh_segments(self,segments,quads_on=True):
         '''
@@ -549,10 +552,31 @@ class OpticalElement:
         seg_np_indices = []
         seg_np_indices.append((np.repeat(np_r_indices.min(),len(np_z_indices)),np_z_indices))
         seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
-        # reverse these two so that it's ccw order
+        # reverse these two so that it's ccw order # actually seems cw?
         seg_np_indices.append((np.repeat(np_r_indices.max(),len(np_z_indices)),np_z_indices[::-1]))
         seg_np_indices.append((np_r_indices[::-1],np.repeat(np_z_indices.min(),len(np_r_indices))))
         return seg_np_indices
+
+    def retrieve_MEBSSegments(self,z_indices,r_indices):
+        np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
+        np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
+        if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
+            raise ValueError('Quads that are not defined on the coarse mesh are not implemented.')
+        segments = []
+        if(not hasattr(self,'coarse_segments')): # REVISIT depending on final usage of this fn 
+            self.define_coarse_mesh_segments()
+        for z_index in np_z_indices[:-1]:
+            segments.append(self.coarse_segments[np_r_indices.min(),z_index,1])
+        for r_index in np_r_indices[:-1]:
+            segments.append(self.coarse_segments[r_index,np_z_indices.max(),0])
+        # reverse these for consistent ordering
+        for z_index in np_z_indices[:-1][::-1]:
+            segments.append(
+               MEBSSegment(None,None,prev_segment=self.coarse_segments[np_r_indices.max(),z_index,1],reverse=True))
+        for r_index in np_r_indices[:-1][::-1]:
+            segments.append(
+               MEBSSegment(None,None,prev_segment=self.coarse_segments[r_index,np_z_indices.min(),0],reverse=True))
+        return segments
     
     # make a list of the numpy indices for points on the boundary of a given
     # type of quad. quad type is specificed by the inputs.
@@ -580,9 +604,16 @@ class OpticalElement:
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
     # does not take curvature into account!
-    def determine_quad_area(self,quad_z_indices,quad_r_indices):
+    def determine_quad_area_old(self,quad_z_indices,quad_r_indices):
         points = self.retrieve_single_quad_edge_points(quad_z_indices,quad_r_indices,return_ind_array=True)
         return calculate_area(self.z[points],self.r[points])
+
+    def determine_quad_area(self,quad_z_indices,quad_r_indices):
+        polygon_coords = []
+        for segment in self.retrieve_MEBSSegments(quad_z_indices,quad_r_indices):
+            polygon_coords += segment.shape.coords
+        polygon = Polygon(polygon_coords)
+        return polygon.area
 
     # collect all segments in the coarse mesh into a list
     def define_coarse_mesh_segments(self):
@@ -667,19 +698,10 @@ class OpticalElement:
         self.fine_segments = segments
         return segments
 
-    # doesn't take into account curvature
-    def plot_quad(self,z_indices,r_indices,color='k'):
-        for seg in self.retrieve_segments(z_indices,r_indices):
-            plt.plot(self.z[seg],self.r[seg],color=color)
-        # np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
-        # np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
-        # seg_np_indices = []
-        # seg_np_indices.append((np.repeat(np_r_indices.min(),len(np_z_indices)),np_z_indices))
-        # seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
-        # seg_np_indices.append((np.repeat(np_r_indices.max(),len(np_z_indices)),np_z_indices))
-        # seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.min(),len(np_r_indices))))
-        # for seg in seg_np_indices:
-        #     plt.plot(self.z[seg],self.r[seg],color=color)
+    def plot_quad(self,z_indices,r_indices,color='k',linewidth=1):
+        for seg in self.retrieve_MEBSSegments(z_indices,r_indices):
+            z,r = seg.shape.xy
+            plt.plot(z,r,color=color,linewidth=linewidth)
     
     def plot_field(self):
         '''
@@ -779,23 +801,9 @@ class StrongMagLens(OpticalElement):
     
     def read_mag_mat(self,line_num):
         return self.read_quad(line_num,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_curve_indices,property_dtype=int)
-#         while(self.infile[line_num].isspace() != True):
-#             line = np.fromstring(self.infile[line_num],dtype=int,count=5,sep=' ')
-#             self.mag_mat_z_indices.append(line[:2])
-#             self.mag_mat_r_indices.append(line[2:4])
-#             self.mag_mat_curve_indices.append(line[4])
-#             line_num+=1
-#         return line_num+1 # start of next block
     
     def read_coil(self,line_num):
         return self.read_quad(line_num,self.coil_z_indices,self.coil_r_indices,self.coil_curr,property_dtype=float)
-#         while(self.infile[line_num].isspace() != True):
-#             line = np.fromstring(self.infile[line_num],dtype=float,count=5,sep=' ')
-#             self.coil_z_indices.append(line[:2].astype(int))
-#             self.coil_r_indices.append(line[2:4].astype(int))
-#             self.coil_curr.append(line[4])
-#             line_num+=1
-#         return line_num+1 # start of next block
     
     def read_hyst_curve(self,line_num):
         lines = []
