@@ -9,6 +9,11 @@ class Point(object):
     def __eq__(self,other):
         return self.__dict__ == other.__dict__
         
+# always returns true with present definition of fine mesh
+# define_exhaustive would make this work
+def does_fine_mesh_intersect(oe):
+    return intersections_in_segment_list(oe.define_fine_mesh_segments())
+
 # makes the smallest possible fine mesh segments
 # not useful except for finding fine-fine intersections
 # curvature not implemented

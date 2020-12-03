@@ -399,23 +399,14 @@ def max_field(quad,other_quad,oe):
     delta_V = np.abs(oe.V[quad.electrode_index] - oe.V[other_quad.electrode_index])
     return delta_V/min_distance(quad,other_quad,oe)
 
-# does not take curvature into account
-# probably okay except in maximum curvature cases
 def min_distance(quad,other_quad,oe):
-    delta_z = oe.z[quad.edge_points][:,np.newaxis] - oe.z[other_quad.edge_points][np.newaxis,:]
-    delta_r = oe.r[quad.edge_points][:,np.newaxis] - oe.r[other_quad.edge_points][np.newaxis,:]
-    distance = np.linalg.norm([delta_z,delta_r],axis=0)
-    return np.min(distance)
+    return oe.make_polygon(quad.z_indices,quad.r_indices).distance(oe.make_polygon(other_quad.z_indices,other_quad.r_indices))
 
 def does_coarse_mesh_intersect(oe):
     try:
         return intersections_in_segment_list(oe.define_coarse_mesh_segments())
     except ValueError: # curvature too high; not really an intersection, but still not a valid mesh
         return True
-
-# always returns true with present definition of fine mesh
-def does_fine_mesh_intersect(oe):
-    return intersections_in_segment_list(oe.define_fine_mesh_segments())
 
 def intersections_in_segment_list(segments):
     for i,segment in enumerate(segments):

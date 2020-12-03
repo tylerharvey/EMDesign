@@ -575,11 +575,13 @@ class OpticalElement:
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
     def determine_quad_area(self,quad_z_indices,quad_r_indices):
+        return self.make_polygon(quad_z_indicees,quad_r_indices).area
+
+    def make_polygon(self,z_indices,r_indices):
         polygon_coords = []
-        for segment in self.retrieve_MEBSSegments(quad_z_indices,quad_r_indices):
+        for segment in self.retrieve_MEBSSegments(z_indices,r_indices):
             polygon_coords += segment.shape.coords
-        polygon = Polygon(polygon_coords)
-        return polygon.area
+        return Polygon(polygon_coords)
 
     # collect all segments in the coarse mesh into a list
     def define_coarse_mesh_segments(self):
