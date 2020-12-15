@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
-from optical_element_io import cd,index_array_from_list
+from optical_element_io import cd,index_array_from_list,np_index
 # from optical_element_io import Point
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize
@@ -142,7 +142,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.col,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curr_bound=3,breakdown_field=10e3):
+def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=5,curr_bound=3,breakdown_field=10e3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -196,32 +196,59 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
         other_z_indices_list = []
     if(other_r_indices_list is None):
         other_r_indices_list = []
+    if(z_curv_z_indices_list is None):
+        z_curv_z_indices_list = []
+    if(z_curv_r_indices_list is None):
+        z_curv_r_indices_list = []
+    if(r_curv_z_indices_list is None):
+        r_curv_z_indices_list = []
+    if(r_curv_r_indices_list is None):
+        r_curv_r_indices_list = []
+    if(end_z_indices_list is None):
+        end_z_indices_list = []
+    if(end_r_indices_list is None):
+        end_r_indices_list = []
+
     options_mutable = options.copy()
     quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
+    z_curv_points_list = define_curves(oe,z_curv_z_indices_list,z_curv_r_indices_list)
+    r_curv_points_list = define_curves(oe,r_curv_z_indices_list,r_curv_r_indices_list)
+    end_electrode_points_list = define_end(oe,end_z_indices_list,end_r_indices_list)
     n_edge_pts = len(all_edge_points_list)
     n_mirrored_edge_pts = len(all_mirrored_edge_points_list) if any(all_mirrored_edge_points_list) else 0
     n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list) if any(all_Rboundary_edge_points_list) else 0
+    n_z_curv_pts = len(z_curv_points_list)
+    n_r_curv_pts = len(r_curv_points_list)
+    n_curv_pts = n_z_curv_pts+n_r_curv_pts
+    n_end_pts = len(end_electrode_points_list) if any(end_electrode_points_list) else 0
     edge_points = index_array_from_list(all_edge_points_list)
     mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
     Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
-    initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.r[edge_points],oe.r[mirrored_edge_points])).tolist()
-    bounds = (n_edge_pts+n_Rboundary_edge_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
-    edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts]
+    z_curv_points = index_array_from_list(z_curv_points_list)
+    r_curv_points = index_array_from_list(r_curv_points_list)
+    end_points = index_array_from_list(end_electrode_points_list)
+    # getting complicated, could be rewritten
+    initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.z[end_points],oe.r[edge_points],oe.r[mirrored_edge_points],oe.z_curv[z_curv_points],oe.r_curv[r_curv_points])).tolist()
+    bounds = np.array((n_edge_pts+n_Rboundary_edge_pts+n_end_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]+n_curv_pts*[(None,None)]) # could add segment length-based bounds, but would be complicated
+    edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts+n_z_curv_pts]
+    shape_data = ShapeData(quads,other_quads,edge_pts_splitlist,edge_points,Rboundary_edge_points,end_points,mirrored_edge_points,z_curv_points,r_curv_points)
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
-        options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale)
+        options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale,n_curve_points=n_curv_pts,curve_scale=curve_scale)
         print('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options_mutable)
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,shape_data,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options_mutable)
         elif(oe.lens_type == 'electrostatic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,quads,other_quads,edge_pts_splitlist,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options_mutable)
+            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,shape_data,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options_mutable)
     else:
-        result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,quads,other_quads,edge_pts_splitlist,TimeoutCheck()),bounds=bounds,method=method,options=options_mutable)
+        result = minimize(change_n_quads_and_calculate,initial_shape,
+                          args=(oe,col,shape_data,TimeoutCheck()),
+                          bounds=bounds,method=method,options=options_mutable)
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
-    change_n_quads_and_calculate(result.x,oe,col,quads,other_quads,edge_pts_splitlist)
+    change_n_quads_and_calculate(result.x,oe,col,shape_data)
     if(col.program == 'mirror'):
         col.raytrace_from_saved_values()
     if(method=='Nelder-Mead' and options.get('return_all') == True):
@@ -239,6 +266,21 @@ def optimize_image_plane(oe,min_dist=3,image_plane=6):
     change_imgplane_and_calculate(result.x,oe)
     print('Optimization complete')
 
+class ShapeData:
+    '''
+    Class to carry around general shape information for optimization.
+    '''
+    def __init__(self,quads,other_quads,splitlist,edge_points,Rboundary_edge_points,end_points,mirrored_edge_points,z_curv_points,r_curv_points):
+        self.quads = quads
+        self.other_quads = other_quads
+        self.splitlist = splitlist
+        self.edge_points = edge_points
+        self.Rboundary_edge_points = Rboundary_edge_points
+        self.end_points = end_points
+        self.mirrored_edge_points = mirrored_edge_points
+        self.z_curv_points = z_curv_points
+        self.r_curv_points = r_curv_points
+
 class Quad:
     '''
     Class to carry around quad information for optimization.
@@ -246,6 +288,7 @@ class Quad:
 
     def __init__(self,oe,z_indices,r_indices,separate_mirrored=True,separate_radial_boundary=False):
 
+        # determine if quad is electrode
         try:  # works if lens is electric
             is_array_in_list = [np.array_equal(z_indices,element) for element in oe.electrode_z_indices]
             if(any(is_array_in_list)):
@@ -290,7 +333,21 @@ class Quad:
         self.Rboundary_edge_points = index_array_from_list(self.Rboundary_edge_points_list)
 
 
-# takes a list of quads definedb by two z indices and two r indices
+def define_curves(oe,z_indices_list,r_indices_list):
+    curves_points_list = []
+    for z,r in zip(z_indices_list,r_indices_list):
+        curves_points_list.append([np_index(oe.r_indices,r),np_index(oe.z_indices,z)])
+    return curves_points_list
+
+def define_end(oe,z_indices_list,r_indices_list):
+    end_points_list = []
+    for z,r_list in zip(z_indices_list,r_indices_list):
+        for r in r_list:
+            end_points_list.append([np_index(oe.r_indices,r),np_index(oe.z_indices,z)])
+    return end_points_list
+
+
+# takes a list of quads defined by two z indices and two r indices
 # and makes a list of Quad objects
 # remove_duplicates_and_mirrored is set to true when the resulting quads 
 # include points that will be changed by optimization
@@ -317,41 +374,49 @@ def define_edges(oe,z_indices_list,r_indices_list,remove_duplicates_and_mirrored
         quads[-1].make_index_arrays()
     return quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list
 
-def generate_initial_simplex(initial_shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=True,bounds=None,breakdown_field=None,scale=5):
+def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=None,breakdown_field=None,scale=5,n_curve_points=None,curve_scale=0):
     rng = np.random.default_rng()
     N = len(initial_shape)
     simplex = np.zeros((N+1,N),dtype=float)
+    if(n_curve_points):
+        n_snc = len(initial_shape[:-n_curve_points]) # snc is short for 'shape, no curves'
+        scale_array = np.concatenate([np.ones((n_snc),dtype=float)*scale,np.ones((n_curve_points),dtype=float)*curve_scale])
+    else:
+        scale_array = scale
     for i in range(N+1):
-        simplex[i] = rng.normal(initial_shape,scale,N)
+        simplex[i] = rng.normal(initial_shape,scale_array)
         # keep trying until simplex point is valid
         # inefficient but simple
-        while(change_n_quads_and_check(simplex[i],oe,quads,other_quads,
-              edge_pts_splitlist,enforce_bounds,bounds,breakdown_field)):
-            simplex[i] = rng.normal(initial_shape,scale,N)
+        while(change_n_quads_and_check(simplex[i],oe,shape_data,enforce_bounds,
+                                       bounds,breakdown_field)):
+            simplex[i] = rng.normal(initial_shape,scale_array)
         if(oe.verbose):
             print(f'Simplex {i+1} of {N+1} complete.')
     # save result
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext),simplex)
     # return shape to initial shape
-    change_n_quads_and_check(initial_shape,oe,quads,other_quads,edge_pts_splitlist)
+    change_n_quads_and_check(initial_shape,oe,shape_data)
     return simplex
 
-def change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=False,
+def change_n_quads_and_check(shape,oe,shape_data,enforce_bounds=False,
                              bounds=None,breakdown_field=None):
-    z_shapes,Rboundary_z_shapes,r_shapes,mirrored_r_shapes = np.split(shape,edge_pts_splitlist)
-    for quad in quads:
-        oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
-        oe.z[quad.Rboundary_edge_points],Rboundary_z_shapes = np.split(Rboundary_z_shapes,[quad.n_Rboundary_edge_pts])
-        oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
-        oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
+    # z_shapes,Rboundary_z_shapes,end_z_shapes,r_shapes,mirrored_r_shapes,z_curv,r_curv = np.split(shape,shape_data.edge_pts_splitlist)
+    oe.z[shape_data.edge_points],oe.z[shape_data.Rboundary_edge_points],oe.z[shape_data.end_points],oe.r[shape_data.edge_points],oe.r[shape_data.mirrored_edge_points],oe.z_curv[shape_data.z_curv_points],oe.r_curv[shape_data.r_curv_points] = np.split(shape,shape_data.splitlist)
+    # for quad in shape_data.quads:
+    #     oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
+    #     oe.z[quad.Rboundary_edge_points],Rboundary_z_shapes = np.split(Rboundary_z_shapes,[quad.n_Rboundary_edge_pts])
+    #     oe.r[quad.edge_points],r_shapes = np.split(r_shapes,[quad.n_edge_pts])
+    #     oe.r[quad.mirrored_edge_points],mirrored_r_shapes = np.split(mirrored_r_shapes,[quad.n_mirrored_edge_pts])
     if(enforce_bounds):
-        if((bounds[:,0] > shape).any() or (bounds[:,1] < shape).any()):
+        lb_nn = (bounds[:,0] != None)
+        ub_nn = (bounds[:,1] != None)
+        if((bounds[:,0][lb_nn] > shape[lb_nn]).any() or (bounds[:,1][ub_nn] < shape[ub_nn]).any()):
             return True
     if(does_coarse_mesh_intersect(oe)):
         return True
     if(does_fine_mesh_intersect_coarse(oe)):
         return True
-    if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,quads,other_quads)):
+    if(oe.lens_type == 'electrostatic' and breakdown_field and are_electrodes_too_close(oe,breakdown_field,shape_data.quads,shape_data.other_quads)):
         return True
     return False
 
@@ -376,10 +441,10 @@ def change_imgplane_and_calculate(imgplane,oe):
     print(f"f: {col.f}, C3: {col.c3}")
     return np.abs(col.c3)
 
-def change_n_quads_and_calculate(shape,oe,col,quads,other_quads,edge_pts_splitlist,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None,breakdown_field=None):
+def change_n_quads_and_calculate(shape,oe,col,shape_data,t=TimeoutCheck(),enforce_bounds=False,bounds=None,curr_bound=None,breakdown_field=None):
     if(t.timed_out):
         return 10000
-    if(change_n_quads_and_check(shape,oe,quads,other_quads,edge_pts_splitlist,enforce_bounds=enforce_bounds,bounds=bounds,breakdown_field=breakdown_field)):
+    if(change_n_quads_and_check(shape,oe,shape_data,enforce_bounds=enforce_bounds,bounds=bounds,breakdown_field=breakdown_field)):
         return 10000
     return calculate_c3(oe,col,curr_bound,t)
 

@@ -55,7 +55,7 @@ def np_index(indices,index):
 # index is a MEBS index
 def last_np_index(indices,index):
     l = indices[indices <= index]
-    return len(l)-1 if len(l) > 0 else 0
+    return len(l)-1 # if len(l) > 0 else 0 ## shouldn't be necessary now
 
 # takes a list of np indices np_list = [(1,0),(2,5),...]
 # and casts to a format that can be used for numpy indexing
