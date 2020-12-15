@@ -44,8 +44,17 @@ def np_indices(indices,index_set):
         np_index_array.append(np.nonzero(indices == index)[0][0]) # should find way to parallelize with nonzero
     return np.array(np_index_array)
 
+# indices is an ordered numpy array of MEBS indices
+# like oe.r_indices
+# index is a MEBS index
+def np_index(indices,index):
+    return len(indices[indices < index])
+
+# indices is an ordered numpy array of MEBS indices
+# like oe.r_indices
+# index is a MEBS index
 def last_np_index(indices,index):
-    l = indices[indices < index]
+    l = indices[indices <= index]
     return len(l)-1 if len(l) > 0 else 0
 
 # takes a list of np indices np_list = [(1,0),(2,5),...]
@@ -617,7 +626,8 @@ class OpticalElement:
             i = last_np_index(self.r_indices,r_index)
             # t is the percentage along the radial segment 
             # at which this longitudinal fine segment begins
-            t = (r_index-self.r_indices[i])/(self.r_indices[i+1]-self.r_indices[i])
+            r_dist = r_index - self.r_indices[i]
+            t = r_dist/(self.r_indices[i+1]-self.r_indices[i]) if r_dist else 0
             # make coarse mesh-sized segments from fine mesh
             # skip last point as second point in segment doesn't exist
             for j,z_index in enumerate(self.z_indices[:-1]):
@@ -645,7 +655,8 @@ class OpticalElement:
             j = last_np_index(self.z_indices,z_index)
             # t is the percentage along the longitudinal segment 
             # at which this radial fine segment begins
-            t = (z_index-self.z_indices[i])/(self.z_indices[i+1]-self.z_indices[i])
+            z_dist = z_index-self.z_indices[j]
+            t = z_dist/(self.z_indices[j+1]-self.z_indices[j]) if z_dist else 0
             for i,r_index in enumerate(self.r_indices[:-1]):
                 inv_curv = np.asscalar(inv_z_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
