@@ -142,7 +142,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.col,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=5,curr_bound=3,breakdown_field=10e3):
+def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=0.1,curr_bound=3,breakdown_field=10e3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -229,7 +229,15 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
     r_curv_points = index_array_from_list(r_curv_points_list)
     end_points = index_array_from_list(end_electrode_points_list)
     # getting complicated, could be rewritten
-    initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.z[end_points],oe.r[edge_points],oe.r[mirrored_edge_points],oe.z_curv[z_curv_points],oe.r_curv[r_curv_points])).tolist()
+    if(n_z_curv_pts):
+        inv_z_curv = np.divide(1,oe.z_curv[z_curv_points],where=(oe.z_curv[z_curv_points] != 0))
+    else:
+        inv_z_curv = oe.z_curv[z_curv_points] # empty array
+    if(n_r_curv_pts):
+        inv_r_curv = np.divide(1,oe.r_curv[r_curv_points],where=(oe.r_curv[r_curv_points] != 0))
+    else:
+        inv_r_curv = oe.r_curv[r_curv_points] # empty array
+    initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.z[end_points],oe.r[edge_points],oe.r[mirrored_edge_points],inv_z_curv,inv_r_curv)).tolist()
     bounds = np.array((n_edge_pts+n_Rboundary_edge_pts+n_end_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]+n_curv_pts*[(None,None)]) # could add segment length-based bounds, but would be complicated
     edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts+n_z_curv_pts]
     shape_data = ShapeData(quads,other_quads,edge_pts_splitlist,edge_points,Rboundary_edge_points,end_points,mirrored_edge_points,z_curv_points,r_curv_points)
@@ -401,7 +409,11 @@ def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bou
 def change_n_quads_and_check(shape,oe,shape_data,enforce_bounds=False,
                              bounds=None,breakdown_field=None):
     # z_shapes,Rboundary_z_shapes,end_z_shapes,r_shapes,mirrored_r_shapes,z_curv,r_curv = np.split(shape,shape_data.edge_pts_splitlist)
-    oe.z[shape_data.edge_points],oe.z[shape_data.Rboundary_edge_points],oe.z[shape_data.end_points],oe.r[shape_data.edge_points],oe.r[shape_data.mirrored_edge_points],oe.z_curv[shape_data.z_curv_points],oe.r_curv[shape_data.r_curv_points] = np.split(shape,shape_data.splitlist)
+    oe.z[shape_data.edge_points],oe.z[shape_data.Rboundary_edge_points],oe.z[shape_data.end_points],oe.r[shape_data.edge_points],oe.r[shape_data.mirrored_edge_points],inv_z_curv,inv_r_curv = np.split(shape,shape_data.splitlist)
+    if(len(inv_z_curv)):
+        oe.z_curv[shape_data.z_curv_points] = np.divide(1.0,inv_z_curv,where=(inv_z_curv != 0))
+    if(len(inv_r_curv)):
+        oe.r_curv[shape_data.r_curv_points] = np.divide(1.0,inv_r_curv,where=(inv_r_curv != 0))
     # for quad in shape_data.quads:
     #     oe.z[quad.edge_points],z_shapes = np.split(z_shapes,[quad.n_edge_pts])
     #     oe.z[quad.Rboundary_edge_points],Rboundary_z_shapes = np.split(Rboundary_z_shapes,[quad.n_Rboundary_edge_pts])
