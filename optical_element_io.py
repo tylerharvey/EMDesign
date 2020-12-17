@@ -48,6 +48,15 @@ def np_indices(indices,index_set):
 # like oe.r_indices
 # index is a MEBS index
 def np_index(indices,index):
+    ''' 
+    Returns numpy index from a MEBS index based on an ordered list of indices.
+
+    Parameters:
+        indices : array
+            ordered list of MEBS indices, e.g. oe.r_indices
+        index : int
+            MEBS index.
+    '''
     return len(indices[indices < index])
 
 # indices is an ordered numpy array of MEBS indices
@@ -605,6 +614,10 @@ class OpticalElement:
         return segments.flatten()
 
     def define_fine_mesh_segments(self):
+        '''
+        Uses interpolation to define longest possible fine mesh segments
+        (i.e. coarse mesh length, interpolated between coarse mesh segments).
+        '''
         segments = []
         r_interpolator = interp2d(self.z_indices,self.r_indices,self.r)
         z_interpolator = interp2d(self.z_indices,self.r_indices,self.z)

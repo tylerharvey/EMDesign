@@ -106,8 +106,8 @@ class OptimizeShapes:
             other_z_indices_list : list
             other_r_indices_list : list
                 list of lists of indices for all other quads in optical element.
-                used to avoid intersecting lines.
-                default empty list
+                only use now is avoiding breakdown fields in electrodes.
+                default None.
             z_min : float
             z_max : float
             r_min : float
@@ -142,7 +142,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.col,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=0.1,curr_bound=3,breakdown_field=10e3):
+def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,automate_present_curvature=False,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=0.1,curr_bound=3,breakdown_field=10e3):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -157,8 +157,27 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
         other_z_indices_list : list
         other_r_indices_list : list
             list of lists of indices for all other quads in optical element.
-            used to avoid intersecting lines.
-            default empty list
+            only use now is avoiding breakdown fields in electrodes.
+            default None.
+        z_curv_z_indices_list : list
+        z_curv_r_indices_list : list
+        r_curv_z_indices_list : list
+        r_curv_r_indices_list : list
+            point-by-point list of MEBS indices denoting segments where curvature 
+            (oe.z_curv or oe.r_curv) should be included in automation.
+            e.g. [1,11,21],[1,35,66] for MEBS points (1,1), (11,35) etc.
+            use automate_present_curvature=True for easier operation.
+            default None.
+        end_z_indices_list : list
+        end_r_indices_list : list
+            these lists are constructed as [[line1_MEBS_z],[line2_MEBS_z],...]
+            and [[line1_MEBS_r1,line1_MEBS_r2,...],[line2_MEBS_r1,line2_MEBS_r2,...],...]
+            default None.
+        automate_present_curvature : bool
+            if set to True, the *_curv_*_indices_list inputs are ignored, and 
+            present curvature in oe.z_curv, oe.r_curv is used instead to
+            determine which curvature to update in automation.
+            default False.
         z_min : float
         z_max : float
         r_min : float
@@ -212,21 +231,27 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
     options_mutable = options.copy()
     quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
     other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
-    z_curv_points_list = define_curves(oe,z_curv_z_indices_list,z_curv_r_indices_list)
-    r_curv_points_list = define_curves(oe,r_curv_z_indices_list,r_curv_r_indices_list)
+    if(automate_present_curvature):
+        z_curv_points = np.nonzero(oe.z_curv)
+        r_curv_points = np.nonzero(oe.r_curv)
+        n_z_curv_pts = len(oe.z_curv[z_curv_points])
+        n_r_curv_pts = len(oe.r_curv[r_curv_points])
+    else:
+        z_curv_points_list = define_curves(oe,z_curv_z_indices_list,z_curv_r_indices_list)
+        r_curv_points_list = define_curves(oe,r_curv_z_indices_list,r_curv_r_indices_list)
+        n_z_curv_pts = len(z_curv_points_list)
+        n_r_curv_pts = len(r_curv_points_list)
+        z_curv_points = index_array_from_list(z_curv_points_list)
+        r_curv_points = index_array_from_list(r_curv_points_list)
     end_electrode_points_list = define_end(oe,end_z_indices_list,end_r_indices_list)
     n_edge_pts = len(all_edge_points_list)
     n_mirrored_edge_pts = len(all_mirrored_edge_points_list) if any(all_mirrored_edge_points_list) else 0
     n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list) if any(all_Rboundary_edge_points_list) else 0
-    n_z_curv_pts = len(z_curv_points_list)
-    n_r_curv_pts = len(r_curv_points_list)
-    n_curv_pts = n_z_curv_pts+n_r_curv_pts
     n_end_pts = len(end_electrode_points_list) if any(end_electrode_points_list) else 0
+    n_curv_pts = n_z_curv_pts+n_r_curv_pts
     edge_points = index_array_from_list(all_edge_points_list)
     mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
     Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
-    z_curv_points = index_array_from_list(z_curv_points_list)
-    r_curv_points = index_array_from_list(r_curv_points_list)
     end_points = index_array_from_list(end_electrode_points_list)
     # getting complicated, could be rewritten
     if(n_z_curv_pts):
