@@ -1,0 +1,11 @@
+/home/trh/data/mirror/base/curvedspacedmir5elec00.dat
+/home/trh/data/mirror/base/curvedspacedmir5elec01.dat
+/home/trh/data/mirror/base/mir_curved_col00.dat
+None
+-10
+150
+-500,1000,10000,100000,200000
+f,v1,v2,v3,f
+True
+Comments:
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
