@@ -1,10 +1,16 @@
-/home/trh/data/mirror/base/spacedmir5elec01.dat
-/home/trh/data/mirror/base/spacedmir5elec02.dat
-/home/trh/data/mirror/base/mir_col02.dat
-None
--2.5
-4
--500,1000,10000,100000,200000
-f,v1,v2,v3,f
+Input file: /home/trh/data/mirror/base/spacedmir5elec01.dat
+Output file: /home/trh/data/mirror/base/spacedmir5elec02.dat
+Column file: /home/trh/data/mirror/base/mir_col02.dat
+Initial simplex: None
+z_min bound: -10
+z_max bound: 150
+Voltages: -500,1000,10000,100000,200000
+Flags: f,v1,v2,v3,f
+Curved mirror: False
+End r indices: None
+Automate curvature where present: True
+Simplex scale: 3
+
+
 Comments:
 /home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy

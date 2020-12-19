@@ -1,11 +1,15 @@
-/home/trh/data/mirror/base/curvedspacedmir5elec00.dat
-/home/trh/data/mirror/base/curvedspacedmir5elec01.dat
-/home/trh/data/mirror/base/mir_curved_col00.dat
-None
--10
-150
--500,1000,10000,100000,200000
-f,v1,v2,v3,f
-True
+Input file: /home/trh/data/mirror/base/curvedspacedmir5elec00.dat
+Output file: /home/trh/data/mirror/base/curvedspacedmir5elec01.dat
+Column file: /home/trh/data/mirror/base/mir_curved_col00.dat
+Initial simplex: None
+z_min bound: -10
+z_max bound: 150
+Voltages: -500,1000,10000,100000,200000
+Flags: f,v1,v2,v3,f
+Curved mirror: True
+End r indices: 11,21,31,31
+Automate curvature where present: True
+Simplex scale: 2
+
 Comments:
 /home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
