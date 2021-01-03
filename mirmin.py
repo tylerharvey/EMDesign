@@ -17,19 +17,21 @@ mir_img_cond_filename = lines[2]
 simplex_filename = lines[3]
 z_min = float(lines[4])
 z_max = float(lines[5])
-voltages = np.fromstring(lines[6],dtype=float,sep=',')
-print(lines[7])
-flags = lines[7].split(',')
-curved = bool(lines[8])
-end_r_indices = None if lines[9] == 'None' else np.fromstring(lines[9],dtype=int,sep=',')
-automate_curvature=bool(lines[10])
-simplex_scale=float(lines[11])
+r_min = float(lines[6])
+voltages = np.fromstring(lines[7],dtype=float,sep=',')
+flags = lines[8].split(',')
+curved = bool(lines[9])
+end_r_indices = None if lines[10] == 'None' else np.fromstring(lines[10],dtype=int,sep=',')
+automate_curvature=bool(lines[11])
+simplex_scale=float(lines[12])
+source_pos=float(lines[13])
+img_pos=float(lines[14])
 obj = ElecLens(seed_file,verbose=True)
 obj.mirror_type(mirror=True,curved_mirror=curved)
 obj.write(new_filename)
 col = OpticalColumn(obj)
 col.write_mir_img_cond_file(mir_img_cond_filename,
-                            turning_point=5,
+                            turning_point=5,source_pos=source_pos,img_pos=img_pos,
                             potentials=ElecLens.MirPotentials(obj,voltages,flags))
 obj.calc_field()
 calc_properties_mirror(obj,col)
@@ -37,6 +39,6 @@ col.read_mir_optical_properties(raytrace=True)
 # col.plot_rays()
 
 initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filename)
-optimize_many_shapes(obj,col,obj.dielectric_z_indices+obj.electrode_z_indices,obj.dielectric_r_indices+obj.electrode_r_indices,z_curv_z_indices_list=None,z_curv_r_indices_list=None,end_z_indices_list=[[1]],end_r_indices_list=[end_r_indices],automate_present_curvature=automate_curvature,z_min=z_min,z_max=z_max,r_min=0,r_max=None,simplex_scale=simplex_scale,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
+optimize_many_shapes(obj,col,obj.dielectric_z_indices+obj.electrode_z_indices,obj.dielectric_r_indices+obj.electrode_r_indices,z_curv_z_indices_list=None,z_curv_r_indices_list=None,end_z_indices_list=[[1]],end_r_indices_list=[end_r_indices],automate_present_curvature=automate_curvature,z_min=z_min,z_max=z_max,r_min=r_min,r_max=None,simplex_scale=simplex_scale,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
 
 print(col.c3)
