@@ -526,7 +526,10 @@ def intersections_in_segment_list(segments):
 
 # only checks non-coarse fine with coarse
 def does_fine_mesh_intersect_coarse(oe):
-    fine_segments = oe.define_fine_mesh_segments()
+    try:
+        fine_segments = oe.define_fine_mesh_segments()
+    except ValueError:
+        return True
     # oe.coarse_segments should already be defined
     fine_no_coarse = [segment for segment in fine_segments if segment not in oe.coarse_segments]
     return intersections_between_two_segment_lists(fine_no_coarse,oe.coarse_segments.flatten())

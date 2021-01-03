@@ -105,7 +105,7 @@ class MEBSSegment:
                 curv_sign = np.sign(curvature)
                 center_angle = np.arccos(0.5*self.point_a.distance(self.point_b)/self.radius)
                 if(np.isnan(center_angle)):
-                    raise ValueError('Curvature smaller than half the distance between points.') # no intersection
+                    raise ValueError(f'Curvature smaller than half the distance between points. Point a: {self.point_a}, point b: {self.point_b}, distance: {self.point_a.distance(self.point_b)}, radius: {self.radius}.') # no intersection
                 rel_angle = np.arctan2(self.point_b.y-self.point_a.y,self.point_b.x-self.point_a.x)
                 tot_angle = rel_angle-curv_sign*center_angle
                 # curvature > 0 means point_A-center vector is at a negative angle w.r.t point_a-point_b vector
