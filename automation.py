@@ -431,7 +431,7 @@ def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bou
         if(oe.verbose):
             print(f'Simplex {i+1} of {N+1} complete.')
     # save result
-    np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext),simplex)
+    np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext+f'_{scale}mm'),simplex)
     # return shape to initial shape
     change_n_quads_and_check(initial_shape,oe,shape_data)
     return simplex
