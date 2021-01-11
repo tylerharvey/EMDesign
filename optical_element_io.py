@@ -593,7 +593,7 @@ class OpticalElement:
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
     def determine_quad_area(self,quad_z_indices,quad_r_indices):
-        return self.make_polygon(quad_z_indicees,quad_r_indices).area
+        return self.make_polygon(quad_z_indices,quad_r_indices).area
 
     def make_polygon(self,z_indices,r_indices):
         polygon_coords = []
