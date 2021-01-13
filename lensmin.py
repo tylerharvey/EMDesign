@@ -19,18 +19,20 @@ seed_file = lines[0]
 new_filename = lines[1]
 opt_img_cond_filename = lines[2]
 simplex_filename = lines[3]
-z_max = float(lines[4])
+z_max = None if lines[4] == 'None' else float(lines[4])
 r_min = float(lines[5])
 simplex_scale = float(lines[6])
-obj = StrongMagLens(seed_file)
+obj_pos=float(lines[7])
+img_pos=float(lines[8])
+obj = StrongMagLens(seed_file,verbose=True)
 obj.write(new_filename)
 col = OpticalColumn(obj)
-col.write_opt_img_cond_file(opt_img_cond_filename)
+col.write_opt_img_cond_file(opt_img_cond_filename,obj_pos=obj_pos,img_pos=img_pos)
 obj.calc_field()
 calc_properties_optics(obj,col)
 col.read_optical_properties()
 
 initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filename)
-optimize_many_shapes(obj,col,obj.mag_mat_z_indices+obj.coil_z_indices,obj.mag_mat_r_indices+obj.coil_r_indices,z_min=-150,z_max=z_max,r_min=r_min,r_max=150,simplex_scale=simplex_scale,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
+optimize_many_shapes(obj,col,obj.mag_mat_z_indices+obj.coil_z_indices,obj.mag_mat_r_indices+obj.coil_r_indices,z_min=None,z_max=z_max,r_min=r_min,r_max=None,simplex_scale=simplex_scale,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
 
 print(col.c3)
