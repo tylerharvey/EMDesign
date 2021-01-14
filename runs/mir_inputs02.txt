@@ -4,12 +4,15 @@ Column file: /home/trh/data/mirror/base/mir_col02.dat
 Initial simplex: None
 z_min bound: -10
 z_max bound: 150
+r_min bound: 3
 Voltages: -500,1000,10000,100000,200000
 Flags: f,v1,v2,v3,f
 Curved mirror: False
 End r indices: None
 Automate curvature where present: True
 Simplex scale: 3
+Source position: 90
+Image position: 95
 
 
 Comments:

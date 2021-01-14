@@ -1,0 +1,12 @@
+Input file: /home/trh/data/std_obj/trees/cb/obj40.dat
+Output file: /home/trh/data/std_obj/trees/cb/obj41.dat
+Column file: /home/trh/data/std_obj/trees/cb/opt_col41.dat
+Initial simplex: None
+z_max: -2.5
+r_min: 4
+Simplex_scale: 10
+Object position: 0
+Image position: 6
+
+Comments:
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
