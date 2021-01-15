@@ -142,7 +142,7 @@ class OptimizeShapes:
         return change_n_quads_and_calculate(np.array(shape),self.oe,self.col,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
         
     
-def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,automate_present_curvature=False,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=0.05,curr_bound=3,breakdown_field=10e3):
+def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,automate_present_curvature=False,r_min=0,r_max=None,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=0.05,curr_bound=3,breakdown_field=10e3,adaptive_simplex=True):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -215,6 +215,11 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
         breakdown_field : float
             field at which vacuum breakdown is possible, in V/mm.
             Default 10,000 V/mmm.
+        adaptive_simplex : bool
+            if True, adjusts the simplex scale for each point according to an 
+            initial search. if False, purely normal distribution of simplex 
+            points.
+            default True.
     '''
     if(other_z_indices_list is None):
         other_z_indices_list = []
@@ -271,9 +276,11 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
     bounds = np.array((n_edge_pts+n_Rboundary_edge_pts+n_end_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]+n_curv_pts*[(None,None)]) # could add segment length-based bounds, but would be complicated
     edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts+n_z_curv_pts]
     shape_data = ShapeData(quads,other_quads,edge_pts_splitlist,edge_points,Rboundary_edge_points,end_points,mirrored_edge_points,z_curv_points,r_curv_points)
+    # if(change_n_quads_and_check(initial_shape,oe,shape_data,enforce_bounds=True,bounds=bounds,breakdown_field=breakdown_field)):
+    #     raise ValueError('Initial shape intersects or violates bounds.')
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
-        options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale,n_curve_points=n_curv_pts,curve_scale=curve_scale)
+        options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale,n_curve_points=n_curv_pts,curve_scale=curve_scale,adaptive=adaptive_simplex)
         print('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
@@ -412,24 +419,57 @@ def define_edges(oe,z_indices_list,r_indices_list,remove_duplicates_and_mirrored
         quads[-1].make_index_arrays()
     return quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list
 
-def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=None,breakdown_field=None,scale=5,n_curve_points=None,curve_scale=0):
+def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=None,breakdown_field=None,scale=5,n_curve_points=None,curve_scale=0,adaptive=True):
     rng = np.random.default_rng()
     N = len(initial_shape)
     simplex = np.zeros((N+1,N),dtype=float)
-    if(n_curve_points):
-        n_snc = len(initial_shape[:-n_curve_points]) # snc is short for 'shape, no curves'
-        scale_array = np.concatenate([np.ones((n_snc),dtype=float)*scale,np.ones((n_curve_points),dtype=float)*curve_scale])
-    else:
-        scale_array = scale
-    for i in range(N+1):
-        simplex[i] = rng.normal(initial_shape,scale_array)
-        # keep trying until simplex point is valid
-        # inefficient but simple
-        while(change_n_quads_and_check(simplex[i],oe,shape_data,enforce_bounds,
+    n_snc = len(initial_shape[:-n_curve_points]) if(n_curve_points) else N # snc is short for 'shape, no curves'
+    if(adaptive):
+        shape_copy = np.copy(initial_shape)
+        left = np.zeros((n_snc),dtype=float)
+        right = np.zeros((n_snc),dtype=float)
+        # find boundaries given initial shape
+        for i in range(n_snc):
+            print(f'Adaptive search point {i}.')
+            for x in np.arange(scale/2,2.5*scale,scale/2):
+                shape_copy[i] = initial_shape[i]+x
+                if(change_n_quads_and_check(shape_copy,oe,shape_data,enforce_bounds,
                                        bounds,breakdown_field)):
+                    break
+                right[i] = x
+            for x in np.arange(-scale/2,-2.5*scale,-scale/2):
+                shape_copy[i] = initial_shape[i]+x
+                if(change_n_quads_and_check(shape_copy,oe,shape_data,enforce_bounds,
+                                       bounds,breakdown_field)):
+                    break
+                left[i] = x
+            shape_copy[i] = initial_shape[i]
+        print('Adaptive search complete')
+        initial_shape_no_curves = initial_shape[:n_snc]
+        initial_curve_shape = initial_shape[n_snc:]
+        for i in range(N+1):
+            simplex[i] = np.concatenate([rng.triangular(left+initial_shape_no_curves,
+                                           initial_shape_no_curves,right+initial_shape_no_curves),
+                                         rng.normal(initial_curve_shape,curve_scale)])
+            # keep trying until simplex point is valid
+            # inefficient but simple
+            while(change_n_quads_and_check(simplex[i],oe,shape_data,enforce_bounds,
+                                           bounds,breakdown_field)):
+                simplex[i] = np.concatenate([rng.triangular(left,initial_shape_no_curves,right),
+                                             rng.normal(initial_curve_shape,curve_scale)])
+            if(oe.verbose):
+                print(f'Simplex {i+1} of {N+1} complete.')
+    else:
+        scale_array = np.concatenate([np.ones((n_snc),dtype=float)*scale,np.ones((n_curve_points),dtype=float)*curve_scale]) if n_curve_points else scale
+        for i in range(N+1):
             simplex[i] = rng.normal(initial_shape,scale_array)
-        if(oe.verbose):
-            print(f'Simplex {i+1} of {N+1} complete.')
+            # keep trying until simplex point is valid
+            # inefficient but simple
+            while(change_n_quads_and_check(simplex[i],oe,shape_data,enforce_bounds,
+                                           bounds,breakdown_field)):
+                simplex[i] = rng.normal(initial_shape,scale_array)
+            if(oe.verbose):
+                print(f'Simplex {i+1} of {N+1} complete.')
     # save result
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext+f'_{scale}mm'),simplex)
     # return shape to initial shape
