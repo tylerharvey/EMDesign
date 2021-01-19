@@ -239,7 +239,7 @@ class OpticalElement:
     # so reads .dat files for the second-order solver
     # these are almost exactly the same except they have radii of curvature
     # sections after the mesh that looks like the mesh blocks
-    def __init__(self,filename='',verbose=False,so=False):
+    def __init__(self,filename='',verbose=False,so=False,plot=False):
         '''
         Initialize an instance of an optical element.
 
@@ -267,6 +267,7 @@ class OpticalElement:
         self.infile = []
         self.initialize_lists()
         self.verbose = verbose
+        self.plot = plot
         if(filename):
             self.read(filename)
             shutil.copyfile(filename,filename+'.bak')
@@ -786,10 +787,10 @@ class StrongMagLens(OpticalElement):
         self.potname = self.basename_noext+'.axb' # name of potential file
         line_num = self.read_mag_mat(line_num)
         line_num = self.read_coil(line_num)
-        self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
+        self.plot_mesh_coarse(quads_on=True) if self.plot else 0
         while(self.infile[line_num].isspace() != True):
             line_num = self.read_hyst_curve(line_num)
-            self.plot_hyst() if self.verbose else 0
+            self.plot_hyst() if self.plot else 0
     
     def read_mag_mat(self,line_num):
         return self.read_quad(line_num,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_curve_indices,property_dtype=int)

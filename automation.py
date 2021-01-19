@@ -14,6 +14,7 @@ from optical_element_io import cd,index_array_from_list,np_index
 # from optical_element_io import Point
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize
+import scipy.stats as st
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 import asyncio
 # from sympy import *
@@ -276,8 +277,8 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
     bounds = np.array((n_edge_pts+n_Rboundary_edge_pts+n_end_pts)*[(z_min,z_max)]+(n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]+n_curv_pts*[(None,None)]) # could add segment length-based bounds, but would be complicated
     edge_pts_splitlist = [n_edge_pts,n_edge_pts+n_Rboundary_edge_pts,n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts,2*n_edge_pts+n_Rboundary_edge_pts+n_end_pts+n_mirrored_edge_pts+n_z_curv_pts]
     shape_data = ShapeData(quads,other_quads,edge_pts_splitlist,edge_points,Rboundary_edge_points,end_points,mirrored_edge_points,z_curv_points,r_curv_points)
-    # if(change_n_quads_and_check(initial_shape,oe,shape_data,enforce_bounds=True,bounds=bounds,breakdown_field=breakdown_field)):
-    #     raise ValueError('Initial shape intersects or violates bounds.')
+    if(change_n_quads_and_check(np.array(initial_shape),oe,shape_data,enforce_bounds=True,bounds=bounds,breakdown_field=breakdown_field)):
+        raise ValueError('Initial shape intersects or violates bounds.')
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
         options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale,n_curve_points=n_curv_pts,curve_scale=curve_scale,adaptive=adaptive_simplex)
@@ -426,37 +427,48 @@ def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bou
     n_snc = len(initial_shape[:-n_curve_points]) if(n_curve_points) else N # snc is short for 'shape, no curves'
     if(adaptive):
         shape_copy = np.copy(initial_shape)
+        tfn = TwoFacedNormal() # two-sided gaussian distribution
         left = np.zeros((n_snc),dtype=float)
         right = np.zeros((n_snc),dtype=float)
         # find boundaries given initial shape
         for i in range(n_snc):
-            print(f'Adaptive search point {i}.')
-            for x in np.arange(scale/2,2.5*scale,scale/2):
+            for x in np.arange(2.5*scale,0,-scale/4):
                 shape_copy[i] = initial_shape[i]+x
-                if(change_n_quads_and_check(shape_copy,oe,shape_data,enforce_bounds,
+                if(not change_n_quads_and_check(shape_copy,oe,shape_data,enforce_bounds,
                                        bounds,breakdown_field)):
+                    right[i] = x/1.5
                     break
-                right[i] = x
-            for x in np.arange(-scale/2,-2.5*scale,-scale/2):
+            for x in np.arange(-2.5*scale,0,scale/4):
                 shape_copy[i] = initial_shape[i]+x
-                if(change_n_quads_and_check(shape_copy,oe,shape_data,enforce_bounds,
+                if(not change_n_quads_and_check(shape_copy,oe,shape_data,enforce_bounds,
                                        bounds,breakdown_field)):
+                    left[i] = x/1.5
                     break
-                left[i] = x
+            if(left[i] == 0): 
+                left[i] = -scale/8
+            if(right[i] == 0):
+                right[i] = scale/8
             shape_copy[i] = initial_shape[i]
         print('Adaptive search complete')
         initial_shape_no_curves = initial_shape[:n_snc]
         initial_curve_shape = initial_shape[n_snc:]
         for i in range(N+1):
-            simplex[i] = np.concatenate([rng.triangular(left+initial_shape_no_curves,
-                                           initial_shape_no_curves,right+initial_shape_no_curves),
+            # simplex[i] = np.concatenate([rng.triangular(left+initial_shape_no_curves,
+            #                                initial_shape_no_curves,right+initial_shape_no_curves),
+            simplex[i] = np.concatenate([tfn.rvs(x_0=initial_shape_no_curves,
+                                             sigma_l=np.abs(left),sigma_r=np.abs(right)),
                                          rng.normal(initial_curve_shape,curve_scale)])
             # keep trying until simplex point is valid
             # inefficient but simple
+            adj = 1
             while(change_n_quads_and_check(simplex[i],oe,shape_data,enforce_bounds,
                                            bounds,breakdown_field)):
-                simplex[i] = np.concatenate([rng.triangular(left,initial_shape_no_curves,right),
-                                             rng.normal(initial_curve_shape,curve_scale)])
+                # simplex[i] = np.concatenate([rng.triangular(left,initial_shape_no_curves,right),
+                #                              rng.normal(initial_curve_shape,curve_scale)])
+                simplex[i] = np.concatenate([tfn.rvs(x_0=initial_shape_no_curves,
+                                             sigma_l=np.abs(left)/adj,sigma_r=np.abs(right)/adj),
+                                         rng.normal(initial_curve_shape,curve_scale)])
+                adj *= 1.01
             if(oe.verbose):
                 print(f'Simplex {i+1} of {N+1} complete.')
     else:
@@ -471,7 +483,7 @@ def generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bou
             if(oe.verbose):
                 print(f'Simplex {i+1} of {N+1} complete.')
     # save result
-    np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext+f'_{scale}mm'),simplex)
+    np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext),simplex)
     # return shape to initial shape
     change_n_quads_and_check(initial_shape,oe,shape_data)
     return simplex
@@ -587,6 +599,28 @@ def intersections_between_two_segment_lists(segments,other_segments):
                     else:
                         return True
     return False
+
+# would be nice to figure out how to pass the default loc argument
+# to st.norm.ppf as the loc argument, but it's not obvious that that
+# is possible, so using x_0 instead
+class TwoFacedNormal(st.rv_continuous):
+    def _pdf(self,x,x_0,sigma_l,sigma_r):
+        return (1/(np.sqrt(np.pi/2)*(sigma_l+sigma_r)))*(np.exp(-0.5*((x-x_0)/sigma_l)**2)*(x <= x_0)+np.exp(-0.5*((x-x_0)/sigma_r)**2)*(x > x_0))
+    # defining the ppf isn't strictly necessary, but it's much faster
+    # than letting scipy numerically calculate it.
+    def _ppf(self,prb,x_0,sigma_l,sigma_r):
+        return (np.nan_to_num(
+                 st.norm.ppf(
+                           prb*(sigma_l+sigma_r)/(2*sigma_l),
+                           loc=x_0,scale=sigma_l)) * (prb <= (sigma_l/(sigma_l+sigma_r))) + 
+               np.nan_to_num(
+                st.norm.ppf(
+                           1-((1-prb)*(sigma_l+sigma_r))/(2*sigma_r),
+                           loc=x_0,scale=sigma_r)) * (prb > (sigma_l/(sigma_l+sigma_r))))
+    # default _argcheck demands nonnegative shape arguments
+    def _argcheck(self,x_0,sigma_l,sigma_r):
+        return (sigma_l > 0).all() and (sigma_r > 0).all()
+
 
 # intersection if q1 and q2 are on opposite sides of p1-p2
 # and if p1 and p2 are on opposite sides of q1-q2
