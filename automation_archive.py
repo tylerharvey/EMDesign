@@ -213,3 +213,82 @@ def optimize_mag_mat_shape(oe,z_min=None,z_max=None,r_min=None,r_max=None):
     # oe.write(oe.filename)
 
 
+class OptimizeShapes:
+    '''
+    This class is necessary to use skopt minimizers as they don't allow 
+    additional arguments to be passed to the objective function like scipy.
+    Also, skopt uses a list and cannot use a numpy array for the parameters
+    to optimize.
+
+    Copy of optimize_many_shapes with slight tweaks. Actively updated for
+    consistency but not actively bug-tested and may be broken.
+    '''
+    minimize_switch = {'gbrt': gbrt_minimize,'gp': gp_minimize, 'forest': forest_minimize, 'dummy': dummy_minimize}
+
+    def __init__(self,oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_min=None,z_max=None,r_min=None,r_max=None,method='gbrt',c3=None,n_random_starts=10,n_calls=100):
+        '''
+        Parameters:
+            oe: OpticalElement object
+                optical element to optimize
+            r_indices_list : list
+            z_indices_list : list
+                list of lists of two MEBS r indices and two MEBS z indices that 
+                defines quads to optimize
+            other_z_indices_list : list
+            other_r_indices_list : list
+                list of lists of indices for all other quads in optical element.
+                only use now is avoiding breakdown fields in electrodes.
+                default None.
+            z_min : float
+            z_max : float
+            r_min : float
+            r_max : float
+                bounds
+                default None
+            method : str
+                name of skopt method to use ('gbrt','forest','dummy','gp')
+                default 'gbrt'
+        '''
+        if(other_z_indices_list is None):
+            other_z_indices_list = []
+        if(other_r_indices_list is None):
+            other_r_indices_list = []
+        self.oe = oe
+        self.col = col
+        self.quads,all_edge_points_list,all_mirrored_edge_points_list,all_Rboundary_edge_points_list = define_edges(oe,z_indices_list,r_indices_list)
+        self.other_quads,_,_,_ = define_edges(oe,other_z_indices_list,other_r_indices_list,remove_duplicates_and_mirrored=False)
+        self.n_edge_pts = len(all_edge_points_list)
+        n_mirrored_edge_pts = len(all_mirrored_edge_points_list) if any(all_mirrored_edge_points_list) else 0
+        n_Rboundary_edge_pts = len(all_Rboundary_edge_points_list) if any(all_Rboundary_edge_points_list) else 0
+        edge_points = index_array_from_list(all_edge_points_list)
+        mirrored_edge_points = index_array_from_list(all_mirrored_edge_points_list)
+        Rboundary_edge_points = index_array_from_list(all_Rboundary_edge_points_list)
+        initial_shape = np.concatenate((oe.z[edge_points],oe.z[Rboundary_edge_points],oe.r[edge_points],oe.r[mirrored_edge_points])).tolist()
+        bounds = (self.n_edge_pts+n_Rboundary_edge_pts)*[(z_min,z_max)]+(self.n_edge_pts+n_mirrored_edge_pts)*[(r_min,r_max)]
+        result = self.minimize_switch.get(method,dummy_minimize)(self.change_n_quads_and_calculate,x0=initial_shape,dimensions=bounds,n_random_starts=n_random_starts,n_calls=n_calls,y0=c3)
+        print('Optimization complete.')
+        self.change_n_quads_and_calculate(result.x)
+
+    def change_n_quads_and_calculate(self,shape):
+        return change_n_quads_and_calculate(np.array(shape),self.oe,self.col,self.quads,self.other_quads,self.n_edge_pts,t=TimeoutCheck())
+        
+# for a single coil such that oe.coil_curr = [current]
+def optimize_single_current(oe,col):
+    '''
+    In principle, finds current of one coil necessary to minimize spherical
+    aberration. In practice, has multiple problems:
+    -MEBS throws popups when not running with a defined image plane
+    -higher current will probably always be better
+
+    Not currently useful but could be made so with changes.
+    '''
+    result = minimize(change_current_and_calculate,oe.coil_curr,args=(oe,col),method='Nelder-Mead')
+    oe.coil_curr = result.x
+    oe.write(oe.filename)
+    print('Optimization complete')
+
+    
+def change_current_and_calculate(current,oe,col):
+    oe.coil_curr = current
+    return calculate_c3(oe,col,t=TimeoutCheck())
+

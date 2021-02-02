@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from optical_element_io import cd, check_len, check_len_multi
+from scipy.interpolate import interp1d
 
 class OpticalColumn:
     '''
@@ -84,7 +85,67 @@ class OpticalColumn:
                 print('Ray tracing timed out. Rerunnning.')
                 self.calc_rays()
 
-    def plot_rays(self,cyl_symm=True):
+    def load_rays(self):
+        step,z,r,x,y = np.loadtxt(os.path.join(self.dirname,self.raytracebasename_noext+'.raf'),skiprows=8,unpack=True)
+        cyl_symm = True if (y == 0).all() else False
+        split_indices = np.squeeze(np.argwhere(step[:-1] > step[1:]),axis=1)+1
+        steps = np.split(step,split_indices)
+        zs = np.split(z,split_indices)
+        rs = np.split(r,split_indices)
+        n_rays = len(zs)
+        if(cyl_symm):
+            xs,ys = (None,)*n_rays,(None,)*n_rays
+            r_max = max([np.max(r) for r in rs])
+        else:
+            xs = np.split(x,split_indices)
+            ys = np.split(y,split_indices)
+        return zs,rs,xs,ys,n_rays,r_max,cyl_symm
+
+    def evaluate_retracing(self):
+        '''
+        Determines distance to retracing condition.
+        '''
+        zs,rs,xs,ys,n_rays,r_max,cyl_symm = self.load_rays()
+        # iterate over rays
+        self.ray_dev = np.zeros(n_rays,dtype=float)
+        for ray_i in range(n_rays):
+            self.ray_dev[ray_i] = self.retracing_dev_for_single_ray(zs[ray_i],rs[ray_i],r_max,xs[ray_i],ys[ray_i])
+        return self.ray_dev.sum()
+
+    def retracing_dev_for_single_ray(self,z,r,r_max,x=None,y=None):
+       turnaround_index = np.argmin(z)+1
+       if(turnaround_index == len(z)):
+           return 100 # ray blocked, or something
+       z_out = z[:turnaround_index]
+       z_back = z[turnaround_index:]
+       r_out = r[:turnaround_index]
+       r_back = r[turnaround_index:]
+       if(x and y):
+           x_out = x[:turnaround_index]
+           x_back = x[turnaround_index:]
+           y_out = y[:turnaround_index]
+           y_back = y[turnaround_index:]
+           raise NotImplementedError
+       else: # cyl_symm = True
+           if(np.min(z_back) <= np.min(z_out) and np.max(z_back) >= np.max(z_out)):
+               # interpolate coordinates, as z_out steps
+               # may not perfectly match z_back steps
+               r_func = interp1d(z_back,r_back)
+               # normalize difference in paths by number of steps
+               # and maximum r value reached by any ray
+               return np.abs(((r_func(z_out)-r_out)/len(r_out))/r_max).sum()
+           # this case shouldn't happen, but just in case
+           elif(np.min(z_out) <= np.min(z_back) and np.max(z_out) >= np.max(z_back)):
+               # need to interpolate longer trajectory
+               r_func = interp1d(z_out,r_out)
+               return np.abs(((r_func(z_back)-r_back)/len(r_out))/r_max).sum()
+           else: # mixed
+               r_func = interp1d(z_back,r_back)
+               # need to clearly define validity region
+               validity = (z_out > np.min(z_back))*(z_out < np.max(z_back))
+               return np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_max).sum()
+
+    def plot_rays(self,width=15,height=5):
         '''
         Run after calc_rays() to plot rays.
 
@@ -93,20 +154,16 @@ class OpticalColumn:
                 Determines whether separate x and y values are plotted, or
                 just r.
         '''
-        step,z,r,x,y = np.loadtxt(os.path.join(self.dirname,self.raytracebasename_noext+'.raf'),skiprows=8,unpack=True)
-        split_indices = np.squeeze(np.argwhere(step[:-1] > step[1:]))+1
-        steps = np.split(step,split_indices)
-        zs = np.split(z,split_indices)
-        rs = np.split(r,split_indices)
-        xs = np.split(x,split_indices)
-        ys = np.split(y,split_indices)
+        zs,rs,xs,ys,n_rays,_,cyl_symm = self.load_rays()
+
+        plt.figure(figsize=(width,height))
 
         for oe in self.oe_list:
-            oe.add_mesh_to_plot() 
+            oe.add_coarse_mesh_to_plot() 
             oe.add_quads_to_plot() 
             
         colors = ['b','g','c']
-        for i in range(len(steps)):
+        for i in range(n_rays):
             if(cyl_symm):
                 plt.plot(zs[i],rs[i])
             else:
@@ -126,7 +183,7 @@ class OpticalColumn:
         self.write_raytrace_file(self.mircondfilename,source_pos=self.source_pos,source_size=self.source_size,semiangle=self.semiangle,energy=self.energy,initial_direction=self.initial_direction,lens_type=self.lens_type,lens_pos=self.lens_pos,lens_excitation=self.lens_excitation,potentials=self.potentials,screen_pos=self.screen_pos)
         self.calc_rays()
 
-    def write_raytrace_file(self,mircondfilename,source_pos=90,source_size=200,semiangle=10,energy=200000,initial_direction=180,lens_type='Electrostatic',lens_pos=0,lens_excitation=None,potentials=None,screen_pos=95,relativity=False,cyl_symm=True,r_samples=3,alpha_samples=3,precision=6,n_equipotentials=50):
+    def write_raytrace_file(self,mircondfilename,source_pos=90,source_size=200,semiangle=10,energy=200000,initial_direction=180,lens_type='Electrostatic',lens_pos=0,lens_excitation=None,potentials=None,screen_pos=95,relativity=False,cyl_symm=True,r_samples=3,alpha_samples=3,minimum_rays=False,precision=6,n_equipotentials=50):
         '''
         Creates an input file for SORAY.exe. Primarily for visualizing columns
         implemented in MIRROR. All physical parameters have same name, units
@@ -192,16 +249,18 @@ class OpticalColumn:
                 Number of equally-spaced equipotentials to plot.
                 Default 50.
         '''
-        # SORAY uses mm
-        x_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
-        if(cyl_symm):
-            y_positions = np.array([0])
-        else:
-            y_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
+        if(minimum_rays == False):
+            # SORAY uses mm
+            x_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
+            if(cyl_symm):
+                y_positions = np.array([0])
+            else:
+                y_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
 
-        # SORAY uses degrees
-        angles = initial_direction + np.linspace(-semiangle*180/np.pi/1000,semiangle*180/np.pi/1000,alpha_samples,endpoint=True)
+            # SORAY uses degrees
+            angles = initial_direction + np.linspace(-semiangle*180/np.pi/1000,semiangle*180/np.pi/1000,alpha_samples,endpoint=True)
 
+        self.mircondfilename = mircondfilename
         self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
         self.raytracefile = os.path.join(self.dirname,self.mircondbasename_noext+'_rays'+'.dat')
         self.raytracebasename_noext = os.path.splitext(os.path.basename(self.raytracefile))[0] 
@@ -221,16 +280,26 @@ class OpticalColumn:
         cf.write(self.imgcondsubprop_fmt.format("Save xyz")+self.imgcondtext_fmt.format('off')+"\n")
         cf.write('\nInitial ray conditions\n')
         rayfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=precision)
-        for x in x_positions:
-            for y in y_positions:
-                for alpha in angles:
-                    cf.write(check_len(rayfloat_fmt.format(x),self.colwidth)+
-                             check_len(rayfloat_fmt.format(y),self.colwidth)+
-                             check_len(rayfloat_fmt.format(source_pos),self.colwidth)+
-                             check_len(rayfloat_fmt.format(energy),self.colwidth)+
-                             check_len(rayfloat_fmt.format(alpha),self.colwidth)+
-                             check_len(rayfloat_fmt.format(0),self.colwidth)+ # azimuthal angle
-                             '\n')
+        if(minimum_rays):
+            for x,y,alpha in zip([source_size/2/1000,0],[0,0],[initial_direction,initial_direction+semiangle*180/np.pi/1000]):
+                cf.write(check_len(rayfloat_fmt.format(x),self.colwidth)+
+                         check_len(rayfloat_fmt.format(y),self.colwidth)+
+                         check_len(rayfloat_fmt.format(source_pos),self.colwidth)+
+                         check_len(rayfloat_fmt.format(energy),self.colwidth)+
+                         check_len(rayfloat_fmt.format(alpha),self.colwidth)+
+                         check_len(rayfloat_fmt.format(0),self.colwidth)+ # azimuthal angle
+                         '\n')
+        else:
+            for x in x_positions:
+                for y in y_positions:
+                    for alpha in angles:
+                        cf.write(check_len(rayfloat_fmt.format(x),self.colwidth)+
+                                 check_len(rayfloat_fmt.format(y),self.colwidth)+
+                                 check_len(rayfloat_fmt.format(source_pos),self.colwidth)+
+                                 check_len(rayfloat_fmt.format(energy),self.colwidth)+
+                                 check_len(rayfloat_fmt.format(alpha),self.colwidth)+
+                                 check_len(rayfloat_fmt.format(0),self.colwidth)+ # azimuthal angle
+                                 '\n')
 
         if(potentials is not None):
             pot_min = min(potentials.voltages)
@@ -355,9 +424,6 @@ class OpticalColumn:
                 Default 50. **
             precision : int
                 Number of decimal places to print floats with.
-            raytrace : bool
-                Determines whether raytrace file with same parameters is 
-                automatically written and calc_rays() is run.
         '''
         self.program = 'mirror'
         for oe in self.oe_list:
@@ -593,7 +659,10 @@ class OpticalColumn:
         Run after calc_properties_mirror() to read in the computed optical 
         properties.
 
-        No arguments.
+        Optional parameters:
+            raytrace : bool
+                Determines whether raytrace file with same parameters is 
+                automatically written and calc_rays() is run.
         '''
         pf = open(os.path.join(self.dirname,self.mircondbasename_noext+'.res'),'r')
         properties_lines = pf.readlines()

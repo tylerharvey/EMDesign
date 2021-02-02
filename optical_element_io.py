@@ -224,7 +224,7 @@ class OpticalElement:
             default 12.
         timeout : float
             seconds to wait before killing MEBS programs.
-            default 10 minutes.
+            default 3 minutes.
     '''
     
     colwidth = 12 # width of columns in written .dat files
@@ -232,7 +232,7 @@ class OpticalElement:
     int_fmt = Template("{:${colwidth}d}").substitute(colwidth=colwidth)
     float_fmt = Template("{:${colwidth}.${precision}g}")
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
-    timeout = 10*60 # 10 minutes
+    timeout = 3*60 # 3 minutes
     
 
     # verbose plots everything
