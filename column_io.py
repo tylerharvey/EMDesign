@@ -64,14 +64,16 @@ class OpticalColumn:
     timeout = 10*60 # 10 minutes
 
     def __init__(self,oe):
+        '''
+        Parameters:
+            oe : OpticalElement object
+                passed to self.oe for usage of oe methods and attributes.
+        '''
+
         self.dirname = oe.dirname
         self.oe_list = [oe] # will need to be changed to allow multiple optical elements
         self.oe = oe # will need to be changed to allow multiple optical elements
 
-    # this will ultimately make more sense as an independent object
-    # writing it here for now
-    # class OpticalConfiguration:
-    #     def __init__(self,mircondfilename,source_pos,source_size,semiangle,energy,initial_direction,lens_type,lens_pos,lens_excitation,potentials,screen_pos):
     def calc_rays(self):
         '''
         Run after write_raytrace_file() to calculate rays.
@@ -153,6 +155,12 @@ class OpticalColumn:
             cyl_symm : bool
                 Determines whether separate x and y values are plotted, or
                 just r.
+            width : float
+                plot width passed to plt.figure(figsize=(width,height)).
+                default 15.
+            height : float
+                plot width passed to plt.figure(figsize=(width,height)).
+                default 5.
         '''
         zs,rs,xs,ys,n_rays,_,cyl_symm = self.load_rays()
 
@@ -591,7 +599,7 @@ class OpticalColumn:
         cf.write(self.imgcondprop_fmt.format("Terminal Display")+self.imgcondtext_fmt.format(on)+'\n')
         cf.write(self.imgcondprop_fmt.format("Lens Properties")+self.imgcondtext_fmt.format(on)+'\n')
         cf.write(self.imgcondprop_fmt.format("Number of Intervals")+self.imgcondint_fmt.format(n_intervals)+'\n')
-        # cf.write(self.imgcondprop_fmt.format("Number of Intermediate Images")+self.imgcondint_fmt.format(n_intermediate_images)+'\n')
+        # cf.write(self.imgcondprop_fmt.format("Number of Intermediate Images")+self.imgcondint_fmt.format(n_intermediate_images)+'\n') 
         cf.write('\n')
         cf.write(self.imgcondprop_fmt.format("Object Plane")+self.imgcondfloat_fmt.format(obj_pos)+'\n')
         cf.write(self.imgcondprop_fmt.format("Image Plane")+self.imgcondfloat_fmt.format(img_pos)+'\n')

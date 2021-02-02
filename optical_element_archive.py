@@ -1,3 +1,10 @@
+# orphaned, remove?
+def np_indices(indices,index_set):
+    np_index_array = []
+    for index in index_set:
+        np_index_array.append(np.nonzero(indices == index)[0][0]) # should find way to parallelize with nonzero
+    return np.array(np_index_array)
+
 
 def calculate_area(x,y):
     return 0.5*np.abs((x[:-1]*y[1:]-x[1:]*y[:-1]).sum()+x[-1]*y[0]-x[0]*y[-1])

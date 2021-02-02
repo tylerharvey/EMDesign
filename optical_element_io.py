@@ -37,13 +37,6 @@ def cd(newdir):
     finally:
         os.chdir(prevdir)
 
-# orphaned, remove?
-def np_indices(indices,index_set):
-    np_index_array = []
-    for index in index_set:
-        np_index_array.append(np.nonzero(indices == index)[0][0]) # should find way to parallelize with nonzero
-    return np.array(np_index_array)
-
 # indices is an ordered numpy array of MEBS indices
 # like oe.r_indices
 # index is a MEBS index
@@ -215,6 +208,7 @@ class OpticalElement:
 
     User methods:
         plot_mesh_coarse
+        plot_mesh_fine
         plot_field
         add_curvature (converts optical element .dat file for FOFEM use)
 
@@ -257,6 +251,9 @@ class OpticalElement:
                 (OPTICS does not use curvature.) flag will automatically 
                 flip to True if curvature coordinates are found.
                 default False
+            plot : boolean
+                determines whether plots are shown. 
+                default False for non-blocking operation.
         '''
 
         self.so=so
@@ -872,13 +869,6 @@ class StrongMagLens(OpticalElement):
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')
                 self.calc_field()
-        # now = datetime.datetime.now()
-        # # check if potential file exists and was created in last five minites
-        # if(os.path.exists(self.filename_noext+'.axb') and 
-        #         now - datetime.timedelta(minutes=5) < datetime.datetime.fromtimestamp(os.path.getmtime(self.filename_noext+'.axb')) < now):
-        #     print('Field computation successful.')
-        # else:
-        #     raise Exception('Field computation failed. Run SOFEM GUI on this file for error message.')
 
 
 class WeakMagLens(StrongMagLens):
@@ -1184,7 +1174,6 @@ class ElecLens(OpticalElement):
                                                                                    self.colwidth))
                 f.write("\n")
         f.write("\n")
-        # do this
 
     def add_quads_to_plot(self):
         self.plot_electrodes()
@@ -1215,16 +1204,6 @@ class ElecLens(OpticalElement):
                 print('Field calculation timed out. Rerunning.')
                 self.calc_field()
 
-
-# example_strong = strong_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlenss1.dat",verbose=True)
-# example_strong.write("/home/trh/data/test_strong.dat","a test")
-# 
-# example_weak = weak_mag_lens("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlensc1.dat",verbose=True)
-# example_weak.write("/home/trh/data/test_weak.dat","a test")
-# 
-# example_pp = weak_mag_lens_pp_region("/home/trh/MEBS/OPTICS/dat/OPTICS/Elements/MAG/LENS/mlensp1.dat",verbose=True)
-# example_pp.write("/home/trh/data/test_weak_pp.dat","a test")
-# 
 
 # snippets for each property, with example line numbers on end, for reference
 # --- denotes omitted lines

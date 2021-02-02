@@ -2,6 +2,7 @@
 '''
 User methods:
     optimize_many_shapes
+    optimize_broadly_for_retracing
 '''
 import sys,os,subprocess,shutil,datetime
 from subprocess import TimeoutExpired
@@ -10,14 +11,11 @@ import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
 from optical_element_io import cd,index_array_from_list,np_index
-# from optical_element_io import Point
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
 from scipy.optimize import minimize, minimize_scalar
 import scipy.stats as st
 from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
 import asyncio
-# from sympy import *
-# from sympy.geometry import *
 from shapely.geometry import *
 
 class TimeoutCheck:
@@ -84,7 +82,79 @@ def determine_img_pos_limits(oe):
     return quad_z_max+pad,oe.z.max()
 
 
-def optimize_broadly_for_retracing(oe,col,potentials,img_pos,z_indices_list=None,r_indices_list=None,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,options={'adaptive':True},breakdown_field=10e3,simplex_scale=3,curve_scale=0.05,voltage_logscale=0.5,**kwargs):
+def optimize_broadly_for_retracing(oe,col,potentials,img_pos,z_indices_list=None,r_indices_list=None,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,breakdown_field=10e3,options={'adaptive':True},simplex_scale=3,curve_scale=0.05,voltage_logscale=0.5,**kwargs):
+    '''
+    Automated optimization of any electrode shape, electrode voltages,
+    and the image position for ray-retracing. Shape optimization is very
+    similar to optimize_many_shapes() and also calls prepare_shapes(), 
+    but intended for smaller-scale tweaking after initial optimization with 
+    optimize_many_shapes(), so a number of keyword arguments that broaden the 
+    usage of optimize_many_shapes are not available here.
+
+    Parameters:
+        oe : OpticalElement object
+            optical element to optimize
+        col : OpticalColumn object
+            optical column to optimize
+        potentials : OpticalElement.MirPotentials object
+            initial guess and constraints on voltages to optimize.
+            uses MEBS flags ('f','v1', etc.) to determine which voltages
+            should be varied.
+
+    Optional parameters: 
+        r_indices_list : list
+        z_indices_list : list
+            list of lists of two MEBS r indices and two MEBS z indices that 
+            defines quads to optimize
+            default None.
+        other_z_indices_list : list
+        other_r_indices_list : list
+            list of lists of indices for all other quads in optical element.
+            only use now is avoiding breakdown fields in electrodes.
+            default None.
+        z_curv_z_indices_list : list
+        z_curv_r_indices_list : list
+        r_curv_z_indices_list : list
+        r_curv_r_indices_list : list
+            point-by-point list of MEBS indices denoting segments where curvature 
+            (oe.z_curv or oe.r_curv) should be included in automation.
+            e.g. [1,11,21],[1,35,66] for MEBS points (1,1), (11,35) etc.
+            use automate_present_curvature=True for easier operation.
+            default None.
+        end_z_indices_list : list
+        end_r_indices_list : list
+            these lists are constructed as [[line1_MEBS_z],[line2_MEBS_z],...]
+            and [[line1_MEBS_r1,line1_MEBS_r2,...],[line2_MEBS_r1,line2_MEBS_r2,...],...]
+            default None.
+        z_min : float
+        z_max : float
+        r_min : float
+        r_max : float
+            bounds
+            default None, except r_min = 0.
+        breakdown_field : float
+            field at which vacuum breakdown is possible, in V/mm.
+            Default 10,000 V/mmm.
+        options : dict
+            options for Nelder-Mead.
+            default {'adaptive':True}.
+        simplex_scale : float
+            size (in mm) for normal distribution of simplex points around
+            initial shape. only used with Nelder-Mead. A larger scale results
+            in a longer search that is more likely to find a qualitatively
+            different shape.
+            default 3.
+        curvature_scale : float
+            curvature (in 1/mm) for normal distribution of simplex points
+            around initial shape. only used with Nelder Mead. 68% of generated
+            curvatures will have a radius of more than 1/curvature_scale.
+            default 0.05, so a radius of 20mm.
+        voltage_logscale : float
+            scale for log-normal distribution of voltage points around initial
+            configuaration. units are np.log(Volts).
+            default 0.5.
+
+    '''
 
     options_mutable = options.copy()
 
@@ -244,12 +314,16 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
     scipy.optimize.minimize.
 
     Parameters:
-        oe: OpticalElement object
+        oe : OpticalElement object
             optical element to optimize
+        col : OpticalColumn object
+            optical column to optimize
         r_indices_list : list
         z_indices_list : list
             list of lists of two MEBS r indices and two MEBS z indices that 
             defines quads to optimize
+
+    Optional parameters:
         other_z_indices_list : list
         other_r_indices_list : list
             list of lists of indices for all other quads in optical element.
@@ -279,16 +353,16 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
         r_min : float
         r_max : float
             bounds
-            default None
+            default None, except r_min = 0.
+        method : str
+            name of method to use
+            default 'Nelder-Mead'
         manual_bounds : boolean
             determines whether bounds will be enforced manually in objective
             function. set to False for methods like TNC that include bounds.
             set to True for Nelder-Mead, Powell, etc.
             intersections are always manually blocked.
             default True
-        method : str
-            name of method to use
-            default 'Nelder-Mead'
         options : dict
             options for the specific solver.
             for TNC, a good set is {'eps':0.5,'stepmx':5,'minfev':1,'disp':True}
