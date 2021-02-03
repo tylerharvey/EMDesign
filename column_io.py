@@ -73,6 +73,7 @@ class OpticalColumn:
         self.dirname = oe.dirname
         self.oe_list = [oe] # will need to be changed to allow multiple optical elements
         self.oe = oe # will need to be changed to allow multiple optical elements
+        self.img_source_offset = 0.0001
 
     def calc_rays(self):
         '''

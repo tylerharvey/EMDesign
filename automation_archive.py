@@ -1,3 +1,5 @@
+from skopt import gbrt_minimize, gp_minimize, dummy_minimize, forest_minimize
+
 class Point(object):
     def __init__(self,z,r):
         self.z = z
@@ -291,4 +293,24 @@ def optimize_single_current(oe,col):
 def change_current_and_calculate(current,oe,col):
     oe.coil_curr = current
     return calculate_c3(oe,col,t=TimeoutCheck())
+
+# intersection if q1 and q2 are on opposite sides of p1-p2
+# and if p1 and p2 are on opposite sides of q1-q2
+# based on www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
+def do_segments_intersect(p1,p2,q1,q2):
+    cpa = cross_product_sign(p1,p2,q1)
+    cpb = cross_product_sign(p1,p2,q2)
+    cpc = cross_product_sign(q1,q2,p1)
+    cpd = cross_product_sign(q1,q2,p2)
+    # counting collinear points as non-intersecting
+    if(cpa == 0 or cpb == 0 or cpc == 0 or cpd == 0):
+        return False 
+    return (cpa != cpb and cpc != cpd)
+
+# cross product of p1->p2 and p1->p3
+def cross_product_sign(p1,p2,p3,tol=1e-10):
+    cp = (p2.z-p1.z)*(p3.r-p1.r) - (p3.z-p1.z)*(p2.r-p1.r)
+    if(abs(cp) < tol): # allow collinearity with some finite tolerance
+        return 0
+    return np.sign(cp)
 
