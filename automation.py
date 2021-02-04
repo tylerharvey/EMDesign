@@ -10,42 +10,39 @@ import matplotlib.pyplot as plt
 from contextlib import contextmanager
 from scipy.optimize import minimize, minimize_scalar
 # from shapely.geometry import *
-from automation_library import calculate_c3,
-                               change_image_plane_and_check_retracing,
-                               change_voltages_and_shape_and_check_retracing,
-                               change_voltages_and_check_retracing,
-                               change_imgplane_and_calculate,
-                               change_n_quads_and_calculate,
-                               determine_img_pos_limits,
-                               generate_initial_simplex,
-                               prepare_shapes,
-                               define_curves,
-                               define_end,
-                               define_edges,
-                               change_n_quads_and_check,
-                               find_mirrored_edge_points,
-                               find_Rboundary_edge_points,
-                               are_electrodes_too_close,
-                               max_field,
-                               min_distance,
-                               does_coarse_mesh_intersect,
-                               does_fine_mesh_intersect_coarse,
-                               intersections_between_two_segment_lists,
-                               ShapeData,
-                               Quad,
-                               TwoFacedNormal,
+from automation_library import calculate_c3, \
+                               change_image_plane_and_check_retracing, \
+                               change_voltages_and_shape_and_check_retracing, \
+                               change_voltages_and_check_retracing, \
+                               change_imgplane_and_calculate, \
+                               change_n_quads_and_calculate, \
+                               determine_img_pos_limits, \
+                               generate_initial_simplex, \
+                               prepare_shapes, \
+                               change_n_quads_and_check, \
                                TimeoutCheck
 
-def optimize_planes_for_retracing(col,bounds=(0,200),img_pos=90,**kwargs):
-    result = minimize_scalar(change_image_plane_and_check_retracing,args=(col,kwargs),method='bounded',bounds=bounds)
+def optimize_planes_for_retracing(col, bounds=(0,200), img_pos=90, **kwargs):
+    result = minimize_scalar(change_image_plane_and_check_retracing, args=(col, kwargs),  
+                             method='bounded', bounds=bounds)
+
     print(f"Retracing image plane: {result.x}mm.")
     img_pos = result.x
-    col.write_mir_img_cond_file(col.mircondfilename,source_pos=img_pos-col.img_source_offset,img_pos=img_pos,**kwargs)
-    col.write_raytrace_file(col.mircondfilename,source_pos=img_pos-col.img_source_offset,screen_pos=img_pos,
-                                                              minimum_rays=True,**kwargs)
+
+    col.write_mir_img_cond_file(col.mircondfilename, source_pos=img_pos-col.img_source_offset, 
+                                img_pos=img_pos, **kwargs)
+
+    col.write_raytrace_file(col.mircondfilename, source_pos=img_pos-col.img_source_offset,
+                            screen_pos=img_pos, minimum_rays=True, **kwargs)
 
 
-def optimize_broadly_for_retracing(oe,col,potentials,img_pos,z_indices_list=None,r_indices_list=None,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,breakdown_field=10e3,options={'adaptive':True},simplex_scale=4,curve_scale=0.05,voltage_logscale=0.5,**kwargs):
+def optimize_broadly_for_retracing(
+        oe, col, potentials, img_pos, z_indices_list=None, r_indices_list=None, 
+        other_z_indices_list=None, other_r_indices_list=None, z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
+        r_curv_z_indices_list=None, r_curv_r_indices_list=None, end_z_indices_list=None, end_r_indices_list=None, 
+        z_min=None, z_max=None, r_min=0, r_max=None, breakdown_field=10e3, 
+        options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True}, 
+        simplex_scale=4, curve_scale=0.05, voltage_logscale=0.5, **kwargs):
     '''
     Automated optimization of any electrode shape, electrode voltages,
     and the image position for ray-retracing. Shape optimization is very
@@ -118,10 +115,12 @@ def optimize_broadly_for_retracing(oe,col,potentials,img_pos,z_indices_list=None
             default 0.5.
 
     '''
-
     options_mutable = options.copy()
 
-    initial_shape,bounds,shape_data = prepare_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list,other_r_indices_list,z_curv_z_indices_list,z_curv_r_indices_list,r_curv_z_indices_list,r_curv_r_indices_list,end_z_indices_list,end_r_indices_list,z_min,z_max,r_min,r_max,automate_present_curvature=False)
+    initial_shape, bounds, shape_data = prepare_shapes(
+        oe, col, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
+        z_curv_z_indices_list, z_curv_r_indices_list, r_curv_z_indices_list, r_curv_r_indices_list,
+        end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature=False)
 
     potentials.voltages = np.array(potentials.voltages) 
     flag_mask = np.array(potentials.flags) != 'f'
@@ -133,61 +132,72 @@ def optimize_broadly_for_retracing(oe,col,potentials,img_pos,z_indices_list=None
     N = len(initial_parameters)
     
     # generate shape simplex
-    options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale,curve_scale=curve_scale,adaptive=True,N=N)
+    options_mutable['initial_simplex'] = generate_initial_simplex(
+        initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), breakdown_field=breakdown_field,
+        scale=simplex_scale, curve_scale=curve_scale, adaptive=True, N=N)
+
+     
 
     rng = np.random.default_rng()
-    voltage_simplex = np.zeros((N+1,len(voltages)),dtype=float)
-    img_pos_simplex = np.zeros((N+1,1),dtype=float)
+    voltage_simplex = np.zeros((N+1,len(voltages)), dtype=float)
+    img_pos_simplex = np.zeros((N+1,1), dtype=float)
     for i in range(N+1):
-        voltage_simplex[i] = np.exp(rng.normal(np.log(voltages-voltages.min()+1000),voltage_logscale))+voltages.min()-1000
+        voltage_simplex[i] = np.exp(rng.normal(np.log(voltages-voltages.min()+1000), voltage_logscale)) \
+                             + voltages.min()-1000
         img_pos_simplex[i,:] = rng.uniform(*img_pos_bounds)
 
     options_mutable['initial_simplex'][:,shape_data.n_pts:-1] = voltage_simplex
     options_mutable['initial_simplex'][:,-1:] = img_pos_simplex
 
-    result = minimize(change_voltages_and_shape_and_check_retracing,initial_parameters,
-                       args=(oe,col,potentials,flag_mask,shape_data,bounds,breakdown_field,kwargs),
-                       method='Nelder-Mead',options=options_mutable)
+    result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
+                      args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, kwargs),
+                      method='Nelder-Mead', options=options_mutable)
     print(result)
+
+    if(options.get('return_all') == True):
+        np.save(oe.filename_noext+'_all_solns', result['allvecs'])
 
     potentials.voltages[flag_mask] = result.x[shape_data.n_pts:-1]
     image_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
-    col.write_mir_img_cond_file(col.mircondfilename,potentials=potentials,
-                                source_pos=img_pos-col.img_source_offset,img_pos=img_pos,
+    col.write_mir_img_cond_file(col.mircondfilename, potentials=potentials,
+                                source_pos=img_pos-col.img_source_offset, img_pos=img_pos,
                                 **kwargs)
-    col.write_raytrace_file(col.mircondfilename,potentials=potentials,
-                            source_pos=img_pos-col.img_source_offset,screen_pos=img_pos,
-                            minimum_rays=True,**kwargs)
+    col.write_raytrace_file(col.mircondfilename, potentials=potentials,
+                            source_pos=img_pos-col.img_source_offset, screen_pos=img_pos,
+                            minimum_rays=True, **kwargs)
     col.calc_rays()
     if(oe.plot):
         col.plot_rays()
 
-def optimize_voltages_for_retracing(col,potentials,img_pos,bounds=None,options=None,**kwargs):
+def optimize_voltages_for_retracing(col, potentials, img_pos, bounds=None, options=None, **kwargs):
     potentials.voltages = np.array(potentials.voltages) 
     flag_mask = np.array(potentials.flags) != 'f'
     voltages = potentials.voltages[flag_mask]
-    initial_parameters = np.append(voltages,img_pos) # [v_1, ... , v_n, img_pos]
-    result = minimize(change_voltages_and_check_retracing,initial_parameters,
-                      args=(col,potentials,flag_mask,kwargs),
-                                     method='Nelder-Mead',bounds=bounds,
-                                     options=options)
+    initial_parameters = np.append(voltages, img_pos) # [v_1, ... , v_n, img_pos]
+    result = minimize(change_voltages_and_check_retracing, initial_parameters,
+                      args=(col, potentials, flag_mask, kwargs),
+                      method='Nelder-Mead', bounds=bounds, options=options)
     print(result)
     potentials.voltages[flag_mask] = result.x[:-1]
     image_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
-    col.write_mir_img_cond_file(col.mircondfilename,potentials=potentials,
-                                source_pos=img_pos-col.img_source_offset,img_pos=img_pos,
-                                **kwargs)
-    col.write_raytrace_file(col.mircondfilename,potentials=potentials,
-                            source_pos=img_pos-col.img_source_offset,screen_pos=img_pos,
-                            minimum_rays=True,**kwargs)
+    col.write_mir_img_cond_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset,
+                                img_pos=img_pos, **kwargs)
+    col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset,
+                            screen_pos=img_pos, minimum_rays=True, **kwargs)
     col.calc_rays()
     if(col.oe.plot):
         col.plot_rays()
 
 
-def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list=None,other_r_indices_list=None,z_curv_z_indices_list=None,z_curv_r_indices_list=None,r_curv_z_indices_list=None,r_curv_r_indices_list=None,end_z_indices_list=None,end_r_indices_list=None,z_min=None,z_max=None,r_min=0,r_max=None,automate_present_curvature=False,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True},simplex_scale=5,curve_scale=0.05,curr_bound=3,breakdown_field=10e3,adaptive_simplex=True):
+def optimize_many_shapes(
+        oe, col, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None,
+        z_curv_z_indices_list=None, z_curv_r_indices_list=None, r_curv_z_indices_list=None, r_curv_r_indices_list=None, 
+        end_z_indices_list=None, end_r_indices_list=None, z_min=None, z_max=None, r_min=0, r_max=None, 
+        automate_present_curvature=False, method='Nelder-Mead', manual_bounds=True, 
+        options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True}, 
+        simplex_scale=5, curve_scale=0.05, curr_bound=3, breakdown_field=10e3, adaptive_simplex=True):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -272,32 +282,41 @@ def optimize_many_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_li
     '''
     options_mutable = options.copy()
 
-    initial_shape,bounds,shape_data = prepare_shapes(oe,col,z_indices_list,r_indices_list,other_z_indices_list,other_r_indices_list,z_curv_z_indices_list,z_curv_r_indices_list,r_curv_z_indices_list,r_curv_r_indices_list,end_z_indices_list,end_r_indices_list,z_min,z_max,r_min,r_max,automate_present_curvature)
+    initial_shape, bounds, shape_data = prepare_shapes(
+        oe, col, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
+        z_curv_z_indices_list, z_curv_r_indices_list, r_curv_z_indices_list, r_curv_r_indices_list, 
+        end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature)
 
-    if(change_n_quads_and_check(np.array(initial_shape),oe,shape_data,enforce_bounds=True,bounds=bounds,breakdown_field=breakdown_field)):
+    if(change_n_quads_and_check(np.array(initial_shape), oe, shape_data, enforce_bounds=True, bounds=bounds, 
+            breakdown_field=breakdown_field)):
         raise ValueError('Initial shape intersects or violates bounds.')
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
-        options_mutable['initial_simplex'] = generate_initial_simplex(initial_shape,oe,shape_data,enforce_bounds=True,bounds=np.array(bounds),breakdown_field=breakdown_field,scale=simplex_scale,curve_scale=curve_scale,adaptive=adaptive_simplex)
+        options_mutable['initial_simplex'] = generate_initial_simplex(
+            initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), 
+            breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, adaptive=adaptive_simplex)
         print('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,shape_data,TimeoutCheck(),True,np.array(bounds),curr_bound),method=method,options=options_mutable)
+            result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
+                              True, np.array(bounds), curr_bound), method=method, options=options_mutable)
         elif(oe.lens_type == 'electrostatic'):
-            result = minimize(change_n_quads_and_calculate,initial_shape,args=(oe,col,shape_data,TimeoutCheck(),True,np.array(bounds),None,breakdown_field),method=method,options=options_mutable)
+            result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
+                              True, np.array(bounds), None, breakdown_field), method=method, options=options_mutable)
     else:
-        result = minimize(change_n_quads_and_calculate,initial_shape,
-                          args=(oe,col,shape_data,TimeoutCheck()),
-                          bounds=bounds,method=method,options=options_mutable)
+        result = minimize(change_n_quads_and_calculate, initial_shape,
+                          args=(oe, col, shape_data, TimeoutCheck()),
+                          bounds=bounds, method=method, options=options_mutable)
+
     print('Optimization complete with success flag {}'.format(result.success))
     print(result.message)
-    change_n_quads_and_calculate(result.x,oe,col,shape_data)
+    change_n_quads_and_calculate(result.x, oe, col, shape_data)
     if(col.program == 'mirror'):
         col.raytrace_from_saved_values()
     if(method=='Nelder-Mead' and options.get('return_all') == True):
-        np.save(oe.filename_noext+'_all_solns',result['allvecs'])
+        np.save(oe.filename_noext+'_all_solns', result['allvecs'])
 
-def optimize_image_plane(oe,min_dist=3,image_plane=6):
+def optimize_image_plane(oe, min_dist=3, image_plane=6):
     '''
     In principle, could be used to find the optimal image plane to minimize
     spherical aberration. In practice, that is always zero distance from the
@@ -305,7 +324,8 @@ def optimize_image_plane(oe,min_dist=3,image_plane=6):
     '''
     initial_plane = [image_plane] # mm
     bounds = [(min_dist,100)]
-    result = minimize(change_imgplane_and_calculate,initial_plane,args=(oe),bounds=bounds,method='TNC',options={'eps':0.5,'stepmx':5,'minfev':1})
-    change_imgplane_and_calculate(result.x,oe)
+    result = minimize(change_imgplane_and_calculate, initial_plane, args=(oe), bounds=bounds, method='TNC', 
+                      options={'eps':0.5,'stepmx':5,'minfev':1})
+    change_imgplane_and_calculate(result.x, oe)
     print('Optimization complete')
 
