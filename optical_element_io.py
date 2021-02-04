@@ -286,7 +286,6 @@ class OpticalElement:
         line_num = self.read_mesh()
         if(self.so):
             line_num = self.read_curvature(line_num)
-        # self.plot_mesh_coarse() if self.verbose else 0
         self.read_other_blocks(line_num)
         f.close()
         f = None
@@ -893,7 +892,7 @@ class WeakMagLens(StrongMagLens):
     def read_other_blocks(self,line_num):
         line_num = self.read_mag_mat(line_num)
         line_num = self.read_coil(line_num)
-        self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
+        self.plot_mesh_coarse(quads_on=True) if self.plot else 0
     
     def read_mag_mat(self,line_num):
         return self.read_quad(line_num,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_mu_r,property_dtype=float)
@@ -966,7 +965,7 @@ class WeakMagLens_PP_Region(WeakMagLens):
         line_num = self.read_coil(line_num)
         # when properly implemented, plot_mesh_coarse would also represent 
         # boundary currents in some way
-        self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
+        self.plot_mesh_coarse(quads_on=True) if self.plot else 0
         
     def write_other_blocks(self,f):
         self.write_mag_mat(f) # leaves one blank line at end of section
@@ -1113,7 +1112,7 @@ class ElecLens(OpticalElement):
         self.potname = self.basename_noext+'.axv' # name of potential file
         line_num = self.read_electrodes(line_num)
         line_num = self.read_dielectrics(line_num)
-        self.plot_mesh_coarse(quads_on=True) if self.verbose else 0
+        self.plot_mesh_coarse(quads_on=True) if self.plot else 0
         line_num = self.read_boundaries(line_num)
     
     # read_quad with one line tweaked
