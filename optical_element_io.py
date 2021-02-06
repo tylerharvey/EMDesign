@@ -40,7 +40,7 @@ def cd(newdir):
 # indices is an ordered numpy array of MEBS indices
 # like oe.r_indices
 # index is a MEBS index
-def np_index(indices,index):
+def np_index(indices, index):
     ''' 
     Returns numpy index from a MEBS index based on an ordered list of indices.
 
@@ -55,7 +55,7 @@ def np_index(indices,index):
 # indices is an ordered numpy array of MEBS indices
 # like oe.r_indices
 # index is a MEBS index
-def last_np_index(indices,index):
+def last_np_index(indices, index):
     l = indices[indices <= index]
     return len(l)-1 # if len(l) > 0 else 0 ## shouldn't be necessary now
 
@@ -68,13 +68,13 @@ def index_array_from_list(index_list):
     tmp_array = np.array(index_list)
     return (tmp_array[:,0],tmp_array[:,1])
 
-def check_len(string,colwidth):
+def check_len(string, colwidth):
     if(len(string.strip()) >= colwidth):
         raise Exception(f'Error: zero space between columns. Value: {string} with length {len(string)}, while column width is {self.colwidth}. Increase column width and rerun.')
     else:
         return string
 
-def check_len_multi(string,colwidth):
+def check_len_multi(string, colwidth):
     for item in string.split():
         if(len(item) >= colwidth):
           raise Exception('Error: zero space between columns. Increase column width and rerun.')
@@ -82,7 +82,7 @@ def check_len_multi(string,colwidth):
 
 class MEBSSegment:
     
-    def __init__(self,point_a,point_b,curvature=0,prev_segment=None,reverse=False):
+    def __init__(self, point_a, point_b, curvature=0, prev_segment=None, reverse=False):
         if(prev_segment):
             if(reverse):
                 self.shape = LineString(prev_segment.shape.coords[::-1]) 
@@ -97,12 +97,15 @@ class MEBSSegment:
                 self.radius = np.abs(curvature)
                 curv_sign = np.sign(curvature)
                 center_angle = np.arccos(0.5*self.point_a.distance(self.point_b)/self.radius)
-                if(np.isnan(center_angle)):
-                    raise ValueError(f'Curvature smaller than half the distance between points. Point a: {self.point_a}, point b: {self.point_b}, distance: {self.point_a.distance(self.point_b)}, radius: {self.radius}.') # no intersection
+                if(np.isnan(center_angle)):# no intersection
+                    raise ValueError(f'Curvature smaller than half the distance between points. '
+                                       'Point a: {self.point_a}, point b: {self.point_b}, distance: '
+                                       '{self.point_a.distance(self.point_b)}, radius: {self.radius}.') 
                 rel_angle = np.arctan2(self.point_b.y-self.point_a.y,self.point_b.x-self.point_a.x)
                 tot_angle = rel_angle-curv_sign*center_angle
                 # curvature > 0 means point_A-center vector is at a negative angle w.r.t point_a-point_b vector
-                self.center = Point(self.point_a.x+self.radius*np.cos(tot_angle),self.point_a.y+self.radius*np.sin(tot_angle))
+                self.center = Point(self.point_a.x+self.radius*np.cos(tot_angle),self.point_a.y
+                                    +self.radius*np.sin(tot_angle))
                 theta_a = np.arctan2(self.point_a.y-self.center.y,self.point_a.x-self.center.x)
                 theta_b = np.arctan2(self.point_b.y-self.center.y,self.point_b.x-self.center.x)
                 if(theta_a-theta_b > np.pi):
@@ -123,24 +126,6 @@ class MEBSSegment:
             else:
                 self.arc = False
                 self.shape = LineString([self.point_a,self.point_b])
-
-
-# only here for bug-checking above class
-def do_segments_intersect(p1,p2,q1,q2):
-    cpa = cross_product_sign(p1,p2,q1)
-    cpb = cross_product_sign(p1,p2,q2)
-    cpc = cross_product_sign(q1,q2,p1)
-    cpd = cross_product_sign(q1,q2,p2)
-    # counting collinear points as non-intersecting
-    if(cpa == 0 or cpb == 0 or cpc == 0 or cpd == 0):
-        return False 
-    return (cpa != cpb and cpc != cpd)
-
-def cross_product_sign(p1,p2,p3,tol=1e-10):
-    cp = (p2.x-p1.x)*(p3.y-p1.y) - (p3.x-p1.x)*(p2.y-p1.y)
-    if(abs(cp) < tol): # allow collinearity with some finite tolerance
-        return 0
-    return np.sign(cp)
 
 
 
@@ -233,7 +218,7 @@ class OpticalElement:
     # so reads .dat files for the second-order solver
     # these are almost exactly the same except they have radii of curvature
     # sections after the mesh that looks like the mesh blocks
-    def __init__(self,filename='',verbose=False,so=False,plot=False):
+    def __init__(self, filename='', verbose=False, so=False, plot=False):
         '''
         Initialize an instance of an optical element.
 
@@ -267,12 +252,12 @@ class OpticalElement:
         self.plot = plot
         if(filename):
             self.read(filename)
-            shutil.copyfile(filename,filename+'.bak')
+            shutil.copyfile(filename, filename+'.bak')
             
     def initialize_lists(self):
         pass
     
-    def read(self,filename):
+    def read(self, filename):
         f = open(filename,'r')
         self.filename = filename
         self.basename_noext = os.path.splitext(os.path.basename(filename))[0] # name without directories or extension
@@ -292,7 +277,7 @@ class OpticalElement:
 
     def read_intro(self):
         self.title = self.infile[0].strip('\n')
-        self.output,self.axsym = np.fromstring(self.infile[1],dtype=int,count=2,sep=' ')
+        self.output, self.axsym = np.fromstring(self.infile[1],dtype=int,count=2,sep=' ')
     
     def read_mesh(self):
         self.z_indices = np.fromstring(self.infile[3],dtype=int,sep=' ')
@@ -320,12 +305,15 @@ class OpticalElement:
         if(np.array_equal(r_indices,r_indices_2) != True):
             raise Exception("Read error! r indices read in first and second mesh block not identical!")
         line_num+=1 # skip blank line we just found
-        if(self.so == False and (len(self.z_indices) != 5 and len(np.fromstring(self.infile[line_num],dtype=int,sep=' ')) != 5) or (len(self.z_indices) == 5 and np.array_equal(np.fromstring(self.infile[line_num],dtype=int,sep=' '),self.z_indices))):
+        if(self.so == False and 
+                (len(self.z_indices) != 5 and len(np.fromstring(self.infile[line_num],dtype=int,sep=' ')) != 5) or 
+                (len(self.z_indices) == 5 and 
+                    np.array_equal(np.fromstring(self.infile[line_num],dtype=int,sep=' '),self.z_indices))):
             print('Warning! This data file seems to have curvature coordinates. Setting so=True.')
             self.so = True
         return line_num # save line number of the start of the next block
     
-    def read_curvature(self,line_num):
+    def read_curvature(self, line_num):
         ## curvature intro
         # for z = | z_A z_B |
         #         | z_C z_D |
@@ -362,7 +350,7 @@ class OpticalElement:
         return line_num # save line number of the start of the next block
     
     # generic read function for magnetic materials, coils, electrodes, etc.
-    def read_quad(self,line_num,z_indices,r_indices,quad_property,property_dtype=float):
+    def read_quad(self, line_num, z_indices, r_indices, quad_property, property_dtype=float):
         while(self.infile[line_num].isspace() != True):
             indices = np.fromstring(self.infile[line_num],dtype=int,count=4,sep=' ')
             z_indices.append(indices[:2])
@@ -371,7 +359,8 @@ class OpticalElement:
             line_num+=1
         return line_num+1 # start of next block
     
-    def write(self,outfilename,title=None,coord_precision=6,curr_precision=6,field_precision=6,rel_perm_precision=6,voltage_precision=6):
+    def write(self, outfilename, title=None, coord_precision=6, curr_precision=6, 
+              field_precision=6, rel_perm_precision=6, voltage_precision=6):
         if not title:
             title = self.title
         else:
@@ -392,23 +381,23 @@ class OpticalElement:
         self.filename_noext = os.path.splitext(outfilename)[0]
         self.dirname = os.path.dirname(outfilename)
         
-        self.write_intro(f,title)
-        self.write_coordinates(f,self.z)
-        self.write_coordinates(f,self.r)
+        self.write_intro(f, title)
+        self.write_coordinates(f, self.z)
+        self.write_coordinates(f, self.r)
         if(self.so):
-           self.write_coordinates(f,self.z_curv)
-           self.write_coordinates(f,self.r_curv)
+           self.write_coordinates(f, self.z_curv)
+           self.write_coordinates(f, self.r_curv)
         self.write_other_blocks(f)
         f.close()
         f = None
         
-    def write_intro(self,f,title):
+    def write_intro(self, f, title):
         f.write(title+"\n")
         f.write(check_len(self.int_fmt.format(self.output),self.colwidth))
         f.write(check_len(self.int_fmt.format(self.axsym),self.colwidth))
         f.write("\n\n") # one blank line after intro
 
-    def write_coordinates(self,f,coords,rounding=True):
+    def write_coordinates(self, f, coords, rounding=True):
         f.write(self.sp)
         # I use i and j here explicitly for clarity as 
         # this usage is consistent with the MEBS manual I and J
@@ -424,7 +413,7 @@ class OpticalElement:
             f.write("\n")
         f.write("\n")
         
-    def write_quad(self,f,z_indices,r_indices,quad_property,property_fmt):
+    def write_quad(self, f, z_indices, r_indices, quad_property, property_fmt):
         N = len(z_indices)
         for n in range(N):
             f.write(check_len_multi((self.int_fmt*2).format(*z_indices[n]),self.colwidth))
@@ -435,13 +424,13 @@ class OpticalElement:
         
     # these are dummy functions for the main class that are replaced 
     # by datafile-specific versions in the subclasses
-    def read_other_blocks(self,line_num): 
+    def read_other_blocks(self, line_num): 
         pass
 
-    def write_other_blocks(self,f):
+    def write_other_blocks(self, f):
         pass
         
-    def plot_mesh_fine(self,quads_on=True,index_labels=True,adj=6,zlim=None,rlim=None):
+    def plot_mesh_fine(self, quads_on=True, index_labels=True, adj=6, zlim=None, rlim=None):
         '''
         Plots fine mesh.
 
@@ -472,7 +461,7 @@ class OpticalElement:
         plt.gca().set_aspect('equal')
         plt.show()
 
-    def plot_mesh_coarse(self,quads_on=True,index_labels=True,adj=6,zlim=None,rlim=None):
+    def plot_mesh_coarse(self, quads_on=True, index_labels=True, adj=6, zlim=None, rlim=None):
         '''
         Plots mesh.
 
@@ -495,7 +484,7 @@ class OpticalElement:
         '''
         plt.figure(figsize=(10,10))
         self.add_coarse_mesh_to_plot()
-        self.add_mesh_labels_to_plot(index_labels,adj)
+        self.add_mesh_labels_to_plot(index_labels, adj)
         self.add_quads_to_plot() if quads_on else 0
         plt.xlabel("z (mm)")
         plt.ylabel("r (mm)")
@@ -505,32 +494,32 @@ class OpticalElement:
         plt.gca().set_aspect('equal')
         plt.show()
 
-    def add_fine_mesh_to_plot(self,linewidth=0.1):
-        self.add_mesh_segments_to_plot(self.define_fine_mesh_segments(),linewidth)
+    def add_fine_mesh_to_plot(self, linewidth=0.1):
+        self.add_mesh_segments_to_plot(self.define_fine_mesh_segments(), linewidth)
 
     def add_coarse_mesh_to_plot(self):
         self.add_mesh_segments_to_plot(self.define_coarse_mesh_segments())
 
-    def add_mesh_segments_to_plot(self,segments,linewidth=1):
+    def add_mesh_segments_to_plot(self, segments, linewidth=1):
         for segment in segments:
             if(segment):
                 z,r = segment.shape.xy
                 plt.plot(z,r,color='m',linewidth=linewidth)
 
-    def add_mesh_labels_to_plot(self,index_labels=True,adj=6):
+    def add_mesh_labels_to_plot(self, index_labels=True, adj=6):
         for n in range(self.z.shape[0]):
             if(index_labels):
                 # add r index label
-                plt.text(self.z[n,:].max()+adj,self.r[n,np.argmax(self.z[n,:])],self.r_indices[n])
+                plt.text(self.z[n,:].max()+adj, self.r[n,np.argmax(self.z[n,:])], self.r_indices[n])
         for n in range(self.z.shape[1]):
             if(index_labels):
                 # add z index label
-                plt.text(self.z[np.argmax(self.r[:,n]),n],self.r[:,n].max()+adj,self.z_indices[n])
+                plt.text(self.z[np.argmax(self.r[:,n]),n], self.r[:,n].max()+adj, self.z_indices[n])
         
     def add_quads_to_plot(self):
         pass
     
-    def retrieve_segments(self,z_indices,r_indices):
+    def retrieve_segments(self, z_indices, r_indices):
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
         if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
@@ -543,7 +532,7 @@ class OpticalElement:
         seg_np_indices.append((np_r_indices[::-1],np.repeat(np_z_indices.min(),len(np_r_indices))))
         return seg_np_indices
 
-    def retrieve_MEBSSegments(self,z_indices,r_indices):
+    def retrieve_MEBSSegments(self, z_indices, r_indices):
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
         if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
@@ -558,10 +547,10 @@ class OpticalElement:
         # reverse these for consistent ordering
         for z_index in np_z_indices[:-1][::-1]:
             segments.append(
-               MEBSSegment(None,None,prev_segment=self.coarse_segments[np_r_indices.max(),z_index,1],reverse=True))
+               MEBSSegment(None, None, prev_segment=self.coarse_segments[np_r_indices.max(),z_index,1], reverse=True))
         for r_index in np_r_indices[:-1][::-1]:
             segments.append(
-               MEBSSegment(None,None,prev_segment=self.coarse_segments[r_index,np_z_indices.min(),0],reverse=True))
+               MEBSSegment(None, None, prev_segment=self.coarse_segments[r_index,np_z_indices.min(),0], reverse=True))
         return segments
     
     # make a list of the numpy indices for points on the boundary of a given
@@ -570,31 +559,31 @@ class OpticalElement:
     # a magnetic lens.
     # with argument return_ind_array=True, reformats list into index arrays
     # to be called as self.r[unique_points]
-    def retrieve_edge_points(self,z_indices,r_indices,return_ind_array=False):
+    def retrieve_edge_points(self, z_indices, r_indices, return_ind_array=False):
         # points holds tuples of np indices for all points on the boundary
         points = []
         for n in range(len(r_indices)):
-            for seg in self.retrieve_segments(z_indices[n],r_indices[n]):
+            for seg in self.retrieve_segments(z_indices[n], r_indices[n]):
                 for m in range(len(seg[0])):
                      points.append((seg[0][m],seg[1][m])) 
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
     # same as above, but for a single quad
-    def retrieve_single_quad_edge_points(self,quad_z_indices,quad_r_indices,return_ind_array=False):
+    def retrieve_single_quad_edge_points(self, quad_z_indices, quad_r_indices, return_ind_array=False):
         points = []
-        for seg in self.retrieve_segments(quad_z_indices,quad_r_indices):
+        for seg in self.retrieve_segments(quad_z_indices, quad_r_indices):
             for m in range(len(seg[0])):
                 points.append((seg[0][m],seg[1][m]))
         unique_points = list(dict.fromkeys(points)) # removes duplicate entries
         return index_array_from_list(unique_points) if return_ind_array else unique_points
 
-    def determine_quad_area(self,quad_z_indices,quad_r_indices):
-        return self.make_polygon(quad_z_indices,quad_r_indices).area
+    def determine_quad_area(self, quad_z_indices, quad_r_indices):
+        return self.make_polygon(quad_z_indices, quad_r_indices).area
 
-    def make_polygon(self,z_indices,r_indices):
+    def make_polygon(self, z_indices, r_indices):
         polygon_coords = []
-        for segment in self.retrieve_MEBSSegments(z_indices,r_indices):
+        for segment in self.retrieve_MEBSSegments(z_indices, r_indices):
             polygon_coords += segment.shape.coords
         return Polygon(polygon_coords)
 
@@ -604,9 +593,11 @@ class OpticalElement:
         for i in range(self.z.shape[0]):
             for j in range(self.z.shape[1]):
                 if(i+1 < self.z.shape[0]):
-                    segments[i,j,0] = MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i+1,j],self.r[i+1,j]),self.z_curv[i,j])
+                    segments[i,j,0] = MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i+1,j], self.r[i+1,j]), 
+                                                  self.z_curv[i,j])
                 if(j+1 < self.z.shape[1]):
-                    segments[i,j,1] = MEBSSegment(Point(self.z[i,j],self.r[i,j]),Point(self.z[i,j+1],self.r[i,j+1]),self.r_curv[i,j])
+                    segments[i,j,1] = MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i,j+1], self.r[i,j+1]), 
+                                                  self.r_curv[i,j])
         self.coarse_segments = segments
         return segments.flatten()
 
@@ -633,7 +624,7 @@ class OpticalElement:
         # first, longtudinal fine mesh segments
         for r_index in np.arange(self.r_indices[0],self.r_indices[-1]+step,step):
             # find numpy index of last passed point in self.r_indices
-            i = last_np_index(self.r_indices,r_index)
+            i = last_np_index(self.r_indices, r_index)
             # t is the percentage along the radial segment 
             # at which this longitudinal fine segment begins
             r_dist = r_index - self.r_indices[i]
@@ -658,11 +649,11 @@ class OpticalElement:
                     point_b = Point(np.asscalar(z_interpolator(self.z_indices[j+1],r_index)),
                                     np.asscalar(r_interpolator(self.z_indices[j+1],r_index)))
 
-                segments.append(MEBSSegment(point_a,point_b,curv))
+                segments.append(MEBSSegment(point_a, point_b, curv))
         # now, radial fine mesh segments
         for z_index in np.arange(self.z_indices[0],self.z_indices[-1]+step,step):
             # find numpy index of last passed point in self.z_indices
-            j = last_np_index(self.z_indices,z_index)
+            j = last_np_index(self.z_indices, z_index)
             # t is the percentage along the longitudinal segment 
             # at which this radial fine segment begins
             z_dist = z_index-self.z_indices[j]
@@ -683,12 +674,12 @@ class OpticalElement:
                     point_b = Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),
                                     np.asscalar(r_interpolator(z_index,self.r_indices[i+1])))
 
-                segments.append(MEBSSegment(point_a,point_b,curv))
+                segments.append(MEBSSegment(point_a, point_b, curv))
         self.fine_segments = segments
         return segments
 
-    def plot_quad(self,z_indices,r_indices,color='k',linewidth=1):
-        for seg in self.retrieve_MEBSSegments(z_indices,r_indices):
+    def plot_quad(self, z_indices, r_indices, color='k', linewidth=1):
+        for seg in self.retrieve_MEBSSegments(z_indices, r_indices):
             z,r = seg.shape.xy
             plt.plot(z,r,color=color,linewidth=linewidth)
     
@@ -700,7 +691,7 @@ class OpticalElement:
         '''
         try:
             with cd(self.dirname):
-                z,B = np.genfromtxt(self.potname,dtype=float,skip_header=7,skip_footer=4,unpack=True)
+                z,B = np.genfromtxt(self.potname, dtype=float, skip_header=7, skip_footer=4, unpack=True)
                 plt.plot(z,B)
                 plt.xlabel('z (mm)')
                 plt.ylabel('B (T)')
@@ -779,7 +770,7 @@ class StrongMagLens(OpticalElement):
         self.B_arrays  = [] 
     
     
-    def read_other_blocks(self,line_num):
+    def read_other_blocks(self, line_num):
         self.potname = self.basename_noext+'.axb' # name of potential file
         line_num = self.read_mag_mat(line_num)
         line_num = self.read_coil(line_num)
@@ -788,13 +779,14 @@ class StrongMagLens(OpticalElement):
             line_num = self.read_hyst_curve(line_num)
             self.plot_hyst() if self.plot else 0
     
-    def read_mag_mat(self,line_num):
-        return self.read_quad(line_num,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_curve_indices,property_dtype=int)
+    def read_mag_mat(self, line_num):
+        return self.read_quad(line_num, self.mag_mat_z_indices, self.mag_mat_r_indices, self.mag_mat_curve_indices, 
+                              property_dtype=int)
     
-    def read_coil(self,line_num):
-        return self.read_quad(line_num,self.coil_z_indices,self.coil_r_indices,self.coil_curr,property_dtype=float)
+    def read_coil(self, line_num):
+        return self.read_quad(line_num, self.coil_z_indices, self.coil_r_indices, self.coil_curr, property_dtype=float)
     
-    def read_hyst_curve(self,line_num):
+    def read_hyst_curve(self, line_num):
         lines = []
         while(self.infile[line_num].isspace() != True):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,count=2,sep=' '))
@@ -804,7 +796,7 @@ class StrongMagLens(OpticalElement):
         self.B_arrays.append(lines[:,1])
         return line_num+1 # start of next block
     
-    def plot_hyst(self,i=-1):
+    def plot_hyst(self, i=-1):
         '''
         Plots H-B curve for specified magnetic material.
 
@@ -819,19 +811,19 @@ class StrongMagLens(OpticalElement):
         plt.ylabel("B (T)")
         plt.show()
         
-    def write_other_blocks(self,f):
+    def write_other_blocks(self, f):
         self.write_mag_mat(f)
         self.write_coil(f)
         self.write_hyst(f) # leaves one blank line at end of section
         f.write("\n\n") # three blank lines for a strong magnetic lens
     
-    def write_mag_mat(self,f):
-        self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_curve_indices,self.int_fmt)
+    def write_mag_mat(self, f):
+        self.write_quad(f, self.mag_mat_z_indices, self.mag_mat_r_indices, self.mag_mat_curve_indices, self.int_fmt)
     
-    def write_coil(self,f):
-        self.write_quad(f,self.coil_z_indices,self.coil_r_indices,self.coil_curr,self.curr_fmt)
+    def write_coil(self, f):
+        self.write_quad(f, self.coil_z_indices, self.coil_r_indices, self.coil_curr, self.curr_fmt)
 
-    def write_hyst(self,f):
+    def write_hyst(self, f):
         M = len(self.H_arrays)
         for m in range(M):
             for k in range(len(self.H_arrays[m])):
@@ -847,12 +839,12 @@ class StrongMagLens(OpticalElement):
     def plot_mag_mat(self):
         N = len(self.mag_mat_r_indices)
         for n in range(N):
-            self.plot_quad(self.mag_mat_z_indices[n],self.mag_mat_r_indices[n],color='k')
+            self.plot_quad(self.mag_mat_z_indices[n], self.mag_mat_r_indices[n], color='k')
             
     def plot_coil(self):
         L = len(self.coil_r_indices)
         for l in range(L):
-            self.plot_quad(self.coil_z_indices[l],self.coil_r_indices[l],color='r')
+            self.plot_quad(self.coil_z_indices[l], self.coil_r_indices[l], color='r')
 
     def calc_field(self):
         '''
@@ -863,7 +855,8 @@ class StrongMagLens(OpticalElement):
         with cd(self.dirname):
             outputmode = subprocess.PIPE if self.verbose else None
             try:
-                output = subprocess.run(["somlenss.exe",self.basename_noext],stdout=outputmode,timeout=self.timeout).stdout
+                output = subprocess.run(["somlenss.exe",self.basename_noext], stdout=outputmode, 
+                                        timeout=self.timeout).stdout
                 print(output.decode('utf-8')) if self.verbose else None
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')
@@ -889,21 +882,22 @@ class WeakMagLens(StrongMagLens):
         self.coil_curr = [] 
         
     
-    def read_other_blocks(self,line_num):
+    def read_other_blocks(self, line_num):
         line_num = self.read_mag_mat(line_num)
         line_num = self.read_coil(line_num)
         self.plot_mesh_coarse(quads_on=True) if self.plot else 0
     
-    def read_mag_mat(self,line_num):
-        return self.read_quad(line_num,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_mu_r,property_dtype=float)
+    def read_mag_mat(self, line_num):
+        return self.read_quad(line_num, self.mag_mat_z_indices, self.mag_mat_r_indices, self.mag_mat_mu_r, 
+                              property_dtype=float)
         
-    def write_other_blocks(self,f):
+    def write_other_blocks(self, f):
         self.write_mag_mat(f)
         self.write_coil(f)
         f.write("\n\n") # two blank lines for a weak magnetic lens
     
-    def write_mag_mat(self,f):
-        self.write_quad(f,self.mag_mat_z_indices,self.mag_mat_r_indices,self.mag_mat_mu_r,self.rel_perm_fmt)
+    def write_mag_mat(self, f):
+        self.write_quad(f, self.mag_mat_z_indices, self.mag_mat_r_indices, self.mag_mat_mu_r, self.rel_perm_fmt)
 
     def calc_field(self):
         '''
@@ -913,7 +907,8 @@ class WeakMagLens(StrongMagLens):
         '''
         with cd(self.dirname):
             try:
-                print(subprocess.run(["somlensc.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
+                print(subprocess.run(["somlensc.exe",self.basename_noext], stdout=subprocess.PIPE, 
+                                     timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')
                 self.calc_field()
@@ -959,7 +954,7 @@ class WeakMagLens_PP_Region(WeakMagLens):
         self.mag_mat_mu_r = [] 
 
     
-    def read_other_blocks(self,line_num):
+    def read_other_blocks(self, line_num):
         line_num = self.read_mag_mat(line_num)
         line_num += 1 # extra blank line here for scalar magnetic potential files
         line_num = self.read_coil(line_num)
@@ -967,13 +962,13 @@ class WeakMagLens_PP_Region(WeakMagLens):
         # boundary currents in some way
         self.plot_mesh_coarse(quads_on=True) if self.plot else 0
         
-    def write_other_blocks(self,f):
+    def write_other_blocks(self, f):
         self.write_mag_mat(f) # leaves one blank line at end of section
         f.write("\n") # extra blank line here for scalar potential files
         self.write_coil(f) # leaves one blank line at end of section
         f.write("\n") # two total blank lines for a weak magnetic lens
         
-    def read_coil(self,line_num):
+    def read_coil(self, line_num):
         lines = []
         while(self.infile[line_num].isspace() != True):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,count=2,sep=' '))
@@ -988,11 +983,11 @@ class WeakMagLens_PP_Region(WeakMagLens):
                 section_starts.append(n)
             prev_index = index
         # turn these two numpy arrays into a list containing each section as a numpy array
-        self.boundary_coil_indices = np.split(self.boundary_coil_indices,section_starts)
-        self.boundary_coil_currents = np.split(self.boundary_coil_currents,section_starts)
+        self.boundary_coil_indices = np.split(self.boundary_coil_indices, section_starts)
+        self.boundary_coil_currents = np.split(self.boundary_coil_currents, section_starts)
         return line_num+1 # start of next block
     
-    def write_coil(self,f):
+    def write_coil(self, f):
         M = len(self.boundary_coil_indices)
         for m in range(M):
             for k in range(len(self.boundary_coil_indices[m])):
@@ -1011,7 +1006,8 @@ class WeakMagLens_PP_Region(WeakMagLens):
         '''
         with cd(self.dirname):
             try:
-                print(subprocess.run(["somlensp.exe",self.basename_noext],stdout=subprocess.PIPE,timeout=self.timeout).stdout.decode('utf-8'))
+                print(subprocess.run(["somlensp.exe",self.basename_noext], stdout=subprocess.PIPE, 
+                                     timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')
                 self.calc_field()
@@ -1033,7 +1029,7 @@ class ElecLens(OpticalElement):
     lens_type = 'electrostatic'
 
     class MirPotentials:
-        def __init__(self,parent,voltages,flags,voltage_precision=6):
+        def __init__(self, parent, voltages, flags, voltage_precision=6):
             '''
             Parameters:
                 parent : OpticalElement object
@@ -1051,7 +1047,8 @@ class ElecLens(OpticalElement):
             self.parent = parent
             self.voltages = voltages
             self.flags = flags
-            self.voltage_fmt = self.parent.rfloat_fmt.substitute(imgcondcolwidth=parent.colwidth,precision=voltage_precision)
+            self.voltage_fmt = self.parent.rfloat_fmt.substitute(imgcondcolwidth=parent.colwidth,
+                                                                 precision=voltage_precision)
             self.string = ''
             if(len(flags) != len(voltages)):
                 raise ValueError('Lengths of voltage and flag arrays not equal.')
@@ -1067,7 +1064,7 @@ class ElecLens(OpticalElement):
             return check_len_multi((self.parent.voltage_fmt*len(self.voltages)).format(*self.voltages),
                                                                                   self.parent.colwidth)
 
-    def mirror_type(self,mirror,curved_mirror):
+    def mirror_type(self, mirror, curved_mirror):
         '''
         Run after initializing ElecLens to classify lens.
 
@@ -1108,7 +1105,7 @@ class ElecLens(OpticalElement):
         self.boundary_unit_potentials = []
     
     
-    def read_other_blocks(self,line_num):
+    def read_other_blocks(self, line_num):
         self.potname = self.basename_noext+'.axv' # name of potential file
         line_num = self.read_electrodes(line_num)
         line_num = self.read_dielectrics(line_num)
@@ -1116,7 +1113,7 @@ class ElecLens(OpticalElement):
         line_num = self.read_boundaries(line_num)
     
     # read_quad with one line tweaked
-    def read_electrodes(self,line_num):
+    def read_electrodes(self, line_num):
         while(self.infile[line_num].isspace() != True):
             indices = np.fromstring(self.infile[line_num],dtype=int,count=4,sep=' ')
             self.electrode_z_indices.append(indices[:2])
@@ -1125,10 +1122,11 @@ class ElecLens(OpticalElement):
             line_num+=1
         return line_num+1 # start of next block
     
-    def read_dielectrics(self,line_num):
-        return self.read_quad(line_num,self.dielectric_z_indices,self.dielectric_r_indices,self.dielectric_constants,property_dtype=float)
+    def read_dielectrics(self, line_num):
+        return self.read_quad(line_num, self.dielectric_z_indices, self.dielectric_r_indices, 
+                              self.dielectric_constants, property_dtype=float)
 
-    def read_boundaries(self,line_num):
+    def read_boundaries(self, line_num):
         lines = []
         while(self.infile[line_num].isspace() != True):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,sep=' '))
@@ -1143,16 +1141,16 @@ class ElecLens(OpticalElement):
                 section_starts.append(n)
             prev_index = index
         # turn these two numpy arrays into a list containing each section as a numpy array
-        self.boundary_indices = np.split(self.boundary_indices,section_starts)
-        self.boundary_unit_potentials = np.split(self.boundary_unit_potentials,section_starts)
+        self.boundary_indices = np.split(self.boundary_indices, section_starts)
+        self.boundary_unit_potentials = np.split(self.boundary_unit_potentials, section_starts)
     
-    def write_other_blocks(self,f):
+    def write_other_blocks(self, f):
         self.write_electrodes(f)
         self.write_dielectrics(f)
         self.write_boundaries(f) # leaves one blank line at end of section
         f.write("\n") # two total blank lines for an electrostatic lens
     
-    def write_electrodes(self,f):
+    def write_electrodes(self, f):
         N = len(self.electrode_z_indices)
         M = len(self.electrode_unit_potentials[0])
         for n in range(N):
@@ -1162,15 +1160,16 @@ class ElecLens(OpticalElement):
             f.write("\n")
         f.write("\n")
     
-    def write_dielectrics(self,f):
-        self.write_quad(f,self.dielectric_z_indices,self.dielectric_r_indices,self.dielectric_constants,self.rel_perm_fmt)
-    def write_boundaries(self,f):
+    def write_dielectrics(self, f):
+        self.write_quad(f, self.dielectric_z_indices, self.dielectric_r_indices, self.dielectric_constants, 
+                        self.rel_perm_fmt)
+    def write_boundaries(self, f):
         M = len(self.electrode_unit_potentials[0])
         for p in range(len(self.boundary_indices)): # iterate sections
             for q in range(len(self.boundary_indices[p])): # iterate indices in sections
                 f.write(check_len(self.int_fmt.format(self.boundary_indices[p][q]),self.colwidth))
                 f.write(check_len_multi((self.voltage_fmt*M).format(*self.boundary_unit_potentials[p][q]),
-                                                                                   self.colwidth))
+                                        self.colwidth))
                 f.write("\n")
         f.write("\n")
 
@@ -1181,12 +1180,12 @@ class ElecLens(OpticalElement):
     def plot_electrodes(self):
         N = len(self.electrode_r_indices)
         for n in range(N):
-            self.plot_quad(self.electrode_z_indices[n],self.electrode_r_indices[n],color='k')
+            self.plot_quad(self.electrode_z_indices[n], self.electrode_r_indices[n], color='k')
             
     def plot_dielectrics(self):
         L = len(self.dielectric_r_indices)
         for l in range(L):
-            self.plot_quad(self.dielectric_z_indices[l],self.dielectric_r_indices[l],color='r')
+            self.plot_quad(self.dielectric_z_indices[l], self.dielectric_r_indices[l], color='r')
 
     def calc_field(self):
         '''
@@ -1197,7 +1196,8 @@ class ElecLens(OpticalElement):
         with cd(self.dirname):
             outputmode = subprocess.PIPE if self.verbose else None
             try:
-                output = subprocess.run(["soelens.exe",self.basename_noext],stdout=outputmode,timeout=self.timeout).stdout
+                output = subprocess.run(["soelens.exe",self.basename_noext], stdout=outputmode, 
+                                        timeout=self.timeout).stdout
                 print(output.decode('utf-8')) if self.verbose else None
             except TimeoutExpired:
                 print('Field calculation timed out. Rerunning.')

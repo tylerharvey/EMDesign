@@ -113,6 +113,8 @@ def optimize_broadly_for_retracing(
             scale for log-normal distribution of voltage points around initial
             configuaration. units are np.log(Volts).
             default 0.5.
+        **kwargs 
+            used to pass additional kwargs to write_raytrace_file().
 
     '''
     options_mutable = options.copy()
