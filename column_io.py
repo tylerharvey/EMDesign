@@ -115,7 +115,7 @@ class OpticalColumn:
         self.ray_dev = np.zeros(n_rays,dtype=float)
         for ray_i in range(n_rays):
             self.ray_dev[ray_i] = self.retracing_dev_for_single_ray(zs[ray_i], rs[ray_i], r_max, xs[ray_i], ys[ray_i])
-        return self.ray_dev.sum()
+        return np.abs(self.ray_dev).sum()
 
     def retracing_dev_for_single_ray(self, z, r, r_max, x=None, y=None):
        turnaround_index = np.argmin(z)+1
