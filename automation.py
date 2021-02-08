@@ -134,9 +134,10 @@ def optimize_broadly_for_retracing(
     N = len(initial_parameters)
     
     # generate shape simplex
-    options_mutable['initial_simplex'] = generate_initial_simplex(
-        initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), breakdown_field=breakdown_field,
-        scale=simplex_scale, curve_scale=curve_scale, adaptive=True, N=N)
+    if(options.get('initial_simplex') is None):
+        options_mutable['initial_simplex'] = generate_initial_simplex(
+            initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), 
+            breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, adaptive=True, N=N)
 
      
 

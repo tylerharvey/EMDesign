@@ -40,7 +40,7 @@ initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filena
 # optimize_voltages_for_retracing(col,potentials=ElecLens.MirPotentials(mir,[-500,6905.87,294749,200000],['f','v1','v2','f']),img_pos=90) #,options={'initial_simplex':initial_simplex}) #bounds=[(-10000,190000),(-10000,300000),(65,200)])
 
 
-optimize_broadly_for_retracing(mir,col,potentials=ElecLens.MirPotentials(mir,voltages,flags),img_pos=img_pos,end_z_indices_list=end_z_indices_list,end_r_indices_list=end_r_indices_list,z_curv_z_indices_list=z_curv_z_indices_list,z_curv_r_indices_list=z_curv_r_indices_list,options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True,'maxfev':maxfev})
+optimize_broadly_for_retracing(mir,col,potentials=ElecLens.MirPotentials(mir,voltages,flags),img_pos=img_pos,end_z_indices_list=end_z_indices_list,end_r_indices_list=end_r_indices_list,z_curv_z_indices_list=z_curv_z_indices_list,z_curv_r_indices_list=z_curv_r_indices_list,options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True,'maxfev':maxfev,'initial_simplex':initial_simplex})
 
 
 
