@@ -143,7 +143,7 @@ class OpticalColumn:
            elif(np.min(z_out) <= np.min(z_back) and np.max(z_out) >= np.max(z_back)):
                # need to interpolate longer trajectory
                r_func = interp1d(z_out, r_out)
-               return np.abs(((r_func(z_back)-r_back)/len(r_out))/r_max).sum()
+               return np.abs(((r_func(z_back)-r_back)/len(r_back))/r_max).sum()
            else: # mixed
                r_func = interp1d(z_back, r_back)
                # need to clearly define validity region
@@ -202,7 +202,7 @@ class OpticalColumn:
     def write_raytrace_file(self, mircondfilename, source_pos=90, source_size=200, semiangle=10, energy=200000, 
                             initial_direction=180, lens_type='Electrostatic', lens_pos=0, lens_excitation=None, 
                             potentials=None, screen_pos=95, relativity=False, cyl_symm=True, r_samples=3, 
-                            alpha_samples=3, minimum_rays=False, precision=6, n_equipotentials=50):
+                            alpha_samples=3, minimum_rays=False, precision=8, n_equipotentials=50):
         '''
         Creates an input file for SORAY.exe. Primarily for visualizing columns
         implemented in MIRROR. All physical parameters have same name, units
@@ -264,6 +264,14 @@ class OpticalColumn:
                 Default 3.
             alpha_samples : int
                 Number of samples of initial polar angles. Default 3.
+            minimum_rays : bool
+                If True, overrides alpha_samples and r_samples and produces 
+                exactly two rays.
+                default False.
+            precision : int
+                Sets precision with which to print ray-related floating point
+                numbers. 
+                default 8 here to allow tiny source_pos - img_pos difference.
             n_equipotentials : int
                 Number of equally-spaced equipotentials to plot.
                 Default 50.
