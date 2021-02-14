@@ -216,6 +216,7 @@ class OpticalElement:
     float_fmt = Template("{:${colwidth}.${precision}g}")
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
     timeout = 3*60 # 3 minutes
+    automated = True # uninitialized value
     
 
     # verbose plots everything
@@ -1217,7 +1218,7 @@ class MirPotentials:
         return self.string
 
     def format_noflag(self):
-        return self.autoformat_multi((self.parent.voltage_fmt*len(self.voltages)),self.voltages)
+        return self.parent.autoformat_multi((self.parent.voltage_fmt*len(self.voltages)),self.voltages)
 
 # snippets for each property, with example line numbers on end, for reference
 # --- denotes omitted lines

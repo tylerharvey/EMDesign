@@ -152,6 +152,7 @@ def optimize_broadly_for_retracing(
     options_mutable['initial_simplex'][:,shape_data.n_pts:-1] = voltage_simplex
     options_mutable['initial_simplex'][:,-1:] = img_pos_simplex
 
+    oe.automated = True
     result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
                       args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, kwargs),
                       method='Nelder-Mead', options=options_mutable)
@@ -293,6 +294,7 @@ def optimize_many_shapes(
     if(change_n_quads_and_check(np.array(initial_shape), oe, shape_data, enforce_bounds=True, bounds=bounds, 
             breakdown_field=breakdown_field)):
         raise ValueError('Initial shape intersects or violates bounds.')
+    oe.automated = True
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
         print('Generating initial simplex.')
         options_mutable['initial_simplex'] = generate_initial_simplex(
@@ -327,6 +329,7 @@ def optimize_image_plane(oe, min_dist=3, image_plane=6):
     '''
     initial_plane = [image_plane] # mm
     bounds = [(min_dist,100)]
+    oe.automated = True
     result = minimize(change_imgplane_and_calculate, initial_plane, args=(oe), bounds=bounds, method='TNC', 
                       options={'eps':0.5,'stepmx':5,'minfev':1})
     change_imgplane_and_calculate(result.x, oe)
