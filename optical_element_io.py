@@ -421,8 +421,8 @@ class OpticalElement:
     def write_quad(self, f, z_indices, r_indices, quad_property, property_fmt):
         N = len(z_indices)
         for n in range(N):
-            f.write(check_len_multi((self.int_fmt*2).format(*z_indices[n]),self.colwidth))
-            f.write(check_len_multi((self.int_fmt*2).format(*r_indices[n]),self.colwidth))
+            f.write(self.autoformat_multi((self.int_fmt*2),z_indices[n]))
+            f.write(self.autoformat_multi((self.int_fmt*2),r_indices[n]))
             f.write(check_len(property_fmt.format(quad_property[n]),self.colwidth))
             f.write("\n")
         f.write("\n")
@@ -1132,9 +1132,9 @@ class ElecLens(OpticalElement):
         N = len(self.electrode_z_indices)
         M = len(self.electrode_unit_potentials[0])
         for n in range(N):
-            f.write(check_len_multi((self.int_fmt*2).format(*self.electrode_z_indices[n]),self.colwidth))
-            f.write(check_len_multi((self.int_fmt*2).format(*self.electrode_r_indices[n]),self.colwidth))
-            f.write(check_len_multi((self.voltage_fmt*M).format(*self.electrode_unit_potentials[n]),self.colwidth))
+            f.write(self.autoformat_multi((self.int_fmt*2),self.electrode_z_indices[n]))
+            f.write(self.autoformat_multi((self.int_fmt*2),self.electrode_r_indices[n]))
+            f.write(self.autoformat_multi((self.voltage_fmt*M),self.electrode_unit_potentials[n]))
             f.write("\n")
         f.write("\n")
     
@@ -1146,8 +1146,7 @@ class ElecLens(OpticalElement):
         for p in range(len(self.boundary_indices)): # iterate sections
             for q in range(len(self.boundary_indices[p])): # iterate indices in sections
                 f.write(check_len(self.int_fmt.format(self.boundary_indices[p][q]),self.colwidth))
-                f.write(check_len_multi((self.voltage_fmt*M).format(*self.boundary_unit_potentials[p][q]),
-                                        self.colwidth))
+                f.write(self.autoformat_multi((self.voltage_fmt*M),self.boundary_unit_potentials[p][q]))
                 f.write("\n")
         f.write("\n")
 
@@ -1218,8 +1217,7 @@ class MirPotentials:
         return self.string
 
     def format_noflag(self):
-        return check_len_multi((self.parent.voltage_fmt*len(self.voltages)).format(*self.voltages),
-                                                                              self.parent.colwidth)
+        return self.autoformat_multi((self.parent.voltage_fmt*len(self.voltages)),self.voltages)
 
 # snippets for each property, with example line numbers on end, for reference
 # --- denotes omitted lines

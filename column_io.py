@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from contextlib import contextmanager
-from optical_element_io import cd, check_len, check_len_multi
+from optical_element_io import cd, check_len 
 from scipy.interpolate import interp1d
 
 class OpticalColumn:
