@@ -33,7 +33,7 @@ mir.write(new_filename)
 col = OpticalColumn(mir)
 col.write_mir_img_cond_file(mir_img_cond_filename,
                             turning_point=5,source_pos=source_pos,img_pos=img_pos,
-                            potentials=ElecLens.MirPotentials(mir,voltages,flags))
+                            potentials=MirPotentials(mir,voltages,flags))
 mir.calc_field()
 calc_properties_mirror(mir,col)
 col.read_mir_optical_properties(raytrace=True)

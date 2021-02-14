@@ -56,7 +56,7 @@ def optimize_broadly_for_retracing(
             optical element to optimize
         col : OpticalColumn object
             optical column to optimize
-        potentials : OpticalElement.MirPotentials object
+        potentials : MirPotentials object
             initial guess and constraints on voltages to optimize.
             uses MEBS flags ('f','v1', etc.) to determine which voltages
             should be varied.

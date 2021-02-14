@@ -1035,51 +1035,12 @@ class ElecLens(OpticalElement):
     
     No arguments.
     
-    Has attribute MirPotentials, which is a necessary argument for 
-    write_mir_optical_properties.
-
     User methods:
         mirror_type
         calc_field
     '''
 
     lens_type = 'electrostatic'
-
-    class MirPotentials:
-        def __init__(self, parent, voltages, flags, voltage_precision=6):
-            '''
-            Parameters:
-                parent : OpticalElement object
-                    Used to pass several OpticalElement settings.
-                voltages : list
-                    list of voltages to apply to electrodes
-                flags : list
-                    list of string-type flags that indicate electrode 
-                    variability for autofocusing. options are 'f', 'v1', 'v2'
-                    and so on. 
-            Optional Parameters:
-                voltage_precision : int
-                    precision to use to format voltages. Default 6.
-            '''
-            self.parent = parent
-            self.voltages = voltages
-            self.flags = flags
-            self.voltage_fmt = self.parent.rfloat_fmt.substitute(imgcondcolwidth=parent.colwidth,
-                                                                 precision=voltage_precision)
-            self.string = ''
-            if(len(flags) != len(voltages)):
-                raise ValueError('Lengths of voltage and flag arrays not equal.')
-
-        def format(self):
-            if(self.string == ''): # if not set yet, set
-                for i in range(len(self.voltages)):
-                    self.string += check_len(self.voltage_fmt.format(self.voltages[i]) + self.flags[i],
-                                                                                   self.parent.colwidth)
-            return self.string
-
-        def format_noflag(self):
-            return check_len_multi((self.parent.voltage_fmt*len(self.voltages)).format(*self.voltages),
-                                                                                  self.parent.colwidth)
 
     def mirror_type(self, mirror, curved_mirror):
         '''
@@ -1220,6 +1181,45 @@ class ElecLens(OpticalElement):
                 print('Field calculation timed out. Rerunning.')
                 self.calc_field()
 
+
+class MirPotentials:
+    '''
+    Class for formatting potentials for electric lenses.
+    '''
+    def __init__(self, parent, voltages, flags, voltage_precision=6):
+        '''
+        Parameters:
+            parent : OpticalElement object
+                Used to pass several OpticalElement settings.
+            voltages : list
+                list of voltages to apply to electrodes
+            flags : list
+                list of string-type flags that indicate electrode 
+                variability for autofocusing. options are 'f', 'v1', 'v2'
+                and so on. 
+        Optional Parameters:
+            voltage_precision : int
+                precision to use to format voltages. Default 6.
+        '''
+        self.parent = parent
+        self.voltages = voltages
+        self.flags = flags
+        self.voltage_fmt = self.parent.rfloat_fmt.substitute(imgcondcolwidth=parent.colwidth,
+                                                             precision=voltage_precision)
+        self.string = ''
+        if(len(flags) != len(voltages)):
+            raise ValueError('Lengths of voltage and flag arrays not equal.')
+
+    def format(self):
+        if(self.string == ''): # if not set yet, set
+            for i in range(len(self.voltages)):
+                self.string += check_len(self.voltage_fmt.format(self.voltages[i]) + self.flags[i],
+                                                                               self.parent.colwidth)
+        return self.string
+
+    def format_noflag(self):
+        return check_len_multi((self.parent.voltage_fmt*len(self.voltages)).format(*self.voltages),
+                                                                              self.parent.colwidth)
 
 # snippets for each property, with example line numbers on end, for reference
 # --- denotes omitted lines

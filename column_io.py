@@ -246,9 +246,8 @@ class OpticalColumn:
                 during autofocusing, or d for dynamic. The purpose of the 
                 dynamic option is unclear. Default None for unused.
             potentials : MirPotentials instance
-                The MirPotentials class is defined in the ElecLens class.
-                This class is used to sensibly store and format the string
-                used for specifying the potentials of several electrodes.
+                The MirPotentials class is used to sensibly store and format the 
+                string used for specifying the potentials of several electrodes.
                 Default None for unused. **
             screen_pos : float
                 Screen plane z position (mm). End position of rays for auto-
@@ -419,9 +418,8 @@ class OpticalColumn:
                 during autofocusing, or d for dynamic. The purpose of the 
                 dynamic option is unclear. Default None for unused.
             potentials : MirPotentials instance
-                The MirPotentials class is defined in the ElecLens class.
-                This class is used to sensibly store and format the string
-                used for specifying the potentials of several electrodes.
+                The MirPotentials class is used to sensibly store and format the 
+                string used for specifying the potentials of several electrodes.
                 Default None for unused. **
             ray_method : string
                 Specifies whether rays are computed cylindrically symmetrically
