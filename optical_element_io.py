@@ -70,14 +70,18 @@ def index_array_from_list(index_list):
 
 def check_len(string, colwidth):
     if(len(string.strip()) >= colwidth):
-        raise Exception(f'Error: zero space between columns. Value: {string} with length {len(string)}, while column width is {self.colwidth}. Increase column width and rerun.')
+        raise ValueError(f'Error: zero space between columns. Value: {string} with length {len(string)}, while column width is {self.colwidth}. Increase column width and rerun.')
     else:
         return string
 
+# this is not intuitive, and best illustrated with an example: 
+# if you have two numerical strings of length 10 and colwidth is 10,
+# string.split() does not split, so item will be length 20
+# the check works, but not for the reason you might think
 def check_len_multi(string, colwidth):
     for item in string.split():
         if(len(item) >= colwidth):
-          raise Exception('Error: zero space between columns. Increase column width and rerun.')
+          raise ValueError('Error: zero space between columns. Increase column width and rerun.')
     return string
 
 class MEBSSegment:
@@ -250,6 +254,7 @@ class OpticalElement:
         self.initialize_lists()
         self.verbose = verbose
         self.plot = plot
+        self.automated = False # will be turned on when automation starts
         if(filename):
             self.read(filename)
             shutil.copyfile(filename, filename+'.bak')
@@ -294,7 +299,7 @@ class OpticalElement:
         line_num+=1 # skip blank line we just found
         z_indices_2 = np.fromstring(self.infile[line_num],dtype=int,sep=' ')
         if(np.array_equal(z_indices_2,self.z_indices) != True):
-            raise Exception("Read error! z indices read in first and second mesh block not identical!")
+            raise ValueError("Read error! z indices read in first and second mesh block not identical!")
         line_num+=1 # move to r coordinates
         r_indices_2 = []
         while(self.infile[line_num].isspace() != True):
@@ -303,7 +308,7 @@ class OpticalElement:
             line_num+=1
         self.r = np.array(r)
         if(np.array_equal(r_indices,r_indices_2) != True):
-            raise Exception("Read error! r indices read in first and second mesh block not identical!")
+            raise ValueError("Read error! r indices read in first and second mesh block not identical!")
         line_num+=1 # skip blank line we just found
         if(self.so == False and 
                 (len(self.z_indices) != 5 and len(np.fromstring(self.infile[line_num],dtype=int,sep=' ')) != 5) or 
@@ -709,10 +714,22 @@ class OpticalElement:
         '''
 
         if(hasattr(self,'r_curv')):
-            raise Exception('Curvatures already defined.')
+            raise AttributeError('Curvatures already defined.')
         self.r_curv = np.zeros_like(self.r)
         self.z_curv = np.zeros_like(self.z)
         self.so = True
+         
+    def autoformat_multi(self,template,contents):
+        try: 
+            string = check_len_multi(template.format(*contents),self.colwidth)
+        except ValueError: # recursively increase colwidth
+            if(self.automated):
+                self.colwidth += 1
+                string = self.autoformat_multi(template,contents)
+            else:
+                raise ValueError
+        return string
+
 
 class StrongMagLens(OpticalElement):
     '''
