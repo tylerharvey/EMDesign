@@ -42,7 +42,7 @@ def optimize_broadly_for_retracing(
         r_curv_z_indices_list=None, r_curv_r_indices_list=None, end_z_indices_list=None, end_r_indices_list=None, 
         z_min=None, z_max=None, r_min=0, r_max=None, breakdown_field=10e3, 
         options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True}, 
-        simplex_scale=4, curve_scale=0.05, voltage_logscale=0.5, **kwargs):
+        simplex_scale=4, curve_scale=0.05, voltage_logscale=2, **kwargs):
     '''
     Automated optimization of any electrode shape, electrode voltages,
     and the image position for ray-retracing. Shape optimization is very
@@ -112,7 +112,7 @@ def optimize_broadly_for_retracing(
         voltage_logscale : float
             scale for log-normal distribution of voltage points around initial
             configuaration. units are np.log(Volts).
-            default 0.5.
+            default 2.
         **kwargs 
             used to pass additional kwargs to write_raytrace_file().
 
