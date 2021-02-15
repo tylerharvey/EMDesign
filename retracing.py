@@ -24,7 +24,8 @@ z_curv_z_indices_list = None if lines[8] == 'None' else [1]*z_curv_r_indices_lis
 simplex_scale=float(lines[9])
 voltage_logscale=float(lines[10])
 img_pos=float(lines[11])
-maxfev=float(lines[12])
+energy=float(lines[12])
+maxfev=float(lines[13])
 
 mir = ElecLens(seed_file,verbose=True)
 mir.mirror_type(mirror=True,curved_mirror=curved)
@@ -42,7 +43,7 @@ initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filena
 # optimize_voltages_for_retracing(col,potentials=MirPotentials(mir,[-500,6905.87,294749,200000],['f','v1','v2','f']),img_pos=90) #,options={'initial_simplex':initial_simplex}) #bounds=[(-10000,190000),(-10000,300000),(65,200)])
 
 
-optimize_broadly_for_retracing(mir,col,potentials=MirPotentials(mir,voltages,flags),img_pos=img_pos,end_z_indices_list=end_z_indices_list,end_r_indices_list=end_r_indices_list,z_curv_z_indices_list=z_curv_z_indices_list,z_curv_r_indices_list=z_curv_r_indices_list,simplex_scale=simplex_scale,voltage_logscale=voltage_logscale,options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True,'maxfev':maxfev,'initial_simplex':initial_simplex})
+optimize_broadly_for_retracing(mir,col,potentials=MirPotentials(mir,voltages,flags),img_pos=img_pos,end_z_indices_list=end_z_indices_list,end_r_indices_list=end_r_indices_list,z_curv_z_indices_list=z_curv_z_indices_list,z_curv_r_indices_list=z_curv_r_indices_list,simplex_scale=simplex_scale,voltage_logscale=voltage_logscale,options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True,'maxfev':maxfev,'initial_simplex':initial_simplex},energy=energy)
 
 
 

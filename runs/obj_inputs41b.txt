@@ -7,6 +7,7 @@ r_min: 4
 Simplex_scale: 10
 Object position: 0
 Image position: 6
+Beam energy (V): 200000
 
 Comments:
 /home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy

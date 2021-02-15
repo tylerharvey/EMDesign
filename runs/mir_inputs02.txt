@@ -13,6 +13,7 @@ Automate curvature where present: True
 Simplex scale: 3
 Source position: 90
 Image position: 95
+Beam energy (V): 200000
 
 
 Comments:

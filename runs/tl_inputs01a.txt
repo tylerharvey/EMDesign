@@ -2,11 +2,12 @@ Input file: /home/trh/data/transfer/trees/a/transfer01.dat
 Output file: /home/trh/data/transfer/trees/a/transfer02.dat
 Column file: /home/trh/data/transfer/trees/a/opt_col01.dat
 Initial simplex: None
-z_max: None
-r_min: 5
-Simplex_scale: 6
-Object position: 0
-Image position: 20
+z_max (mm): None
+r_min (mm): 5
+Simplex_scale (mm): 6
+Object position (mm): 0
+Image position (mm): 20
+Beam energy (V): 200000
 
 Comments:
 Initial simplex: /home/trh/data/transfer/trees/a/initial_simplex_for_transfer01_5.0mm.npy

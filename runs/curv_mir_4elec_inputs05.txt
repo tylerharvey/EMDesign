@@ -2,17 +2,18 @@ Input file: /home/trh/data/mirror/base/curvedspacedmir4elec05.dat
 Output file: /home/trh/data/mirror/base/curvedspacedmir4elec06.dat
 Column file: /home/trh/data/mirror/base/mir_curved4_col06.dat
 Initial simplex: None
-z_min bound: -10
-z_max bound: 250
-r_min bound: 3
+z_min bound (mm): -10
+z_max bound (mm): 250
+r_min bound (mm): 3
 Voltages: -500,10000,100000,200000
 Flags: f,v1,v2,f
 Curved mirror: True
 End r indices: 11,21,31,31
 Automate curvature where present: True
-Simplex scale: 3
-Source position: 90
-Image position: 95
+Simplex scale (mm): 3
+Source position (mm): 90
+Image position (mm): 95
+Beam energy (V): 200000
 
 Comments:
 Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir4elec01.npy

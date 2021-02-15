@@ -27,12 +27,13 @@ automate_curvature=bool(lines[11])
 simplex_scale=float(lines[12])
 source_pos=float(lines[13])
 img_pos=float(lines[14])
+energy=float(lines[15])
 mir = ElecLens(seed_file,verbose=True)
 mir.mirror_type(mirror=True,curved_mirror=curved)
 mir.write(new_filename)
 col = OpticalColumn(mir)
-col.write_mir_img_cond_file(mir_img_cond_filename,
-                            turning_point=5,source_pos=source_pos,img_pos=img_pos,
+col.write_mir_img_cond_file(mir_img_cond_filename, turning_point=5, energy=energy,
+                            source_pos=source_pos, img_pos=img_pos,
                             potentials=MirPotentials(mir,voltages,flags))
 mir.calc_field()
 calc_properties_mirror(mir,col)
