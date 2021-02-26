@@ -115,7 +115,7 @@ class OpticalColumn:
         self.ray_dev = np.zeros(n_rays,dtype=float)
         for ray_i in range(n_rays):
             self.ray_dev[ray_i] = self.retracing_dev_for_single_ray(zs[ray_i], rs[ray_i], r_max, xs[ray_i], ys[ray_i])
-        return np.abs(self.ray_dev).sum()
+        return self.ray_dev.sum()
 
     def retracing_dev_for_single_ray(self, z, r, r_max, x=None, y=None):
        turnaround_index = np.argmin(z)+1
@@ -138,17 +138,17 @@ class OpticalColumn:
                r_func = interp1d(z_back, r_back)
                # normalize difference in paths by number of steps
                # and maximum r value reached by any ray
-               return np.abs(((r_func(z_out)-r_out)/len(r_out))/r_max).sum()
+               return (np.abs(((r_func(z_out)-r_out)/len(r_out))/r_max)**2).sum()
            # this case shouldn't happen, but just in case
            elif(np.min(z_out) <= np.min(z_back) and np.max(z_out) >= np.max(z_back)):
                # need to interpolate longer trajectory
                r_func = interp1d(z_out, r_out)
-               return np.abs(((r_func(z_back)-r_back)/len(r_back))/r_max).sum()
+               return (np.abs(((r_func(z_back)-r_back)/len(r_back))/r_max)**2).sum()
            else: # mixed
                r_func = interp1d(z_back, r_back)
                # need to clearly define validity region
                validity = (z_out > np.min(z_back))*(z_out < np.max(z_back))
-               return np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_max).sum()
+               return (np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_max)**2).sum()
 
     def plot_rays(self, width=15, height=5):
         '''
