@@ -1,7 +1,7 @@
-Input file: /home/trh/data/mirror/base/curvedspacedmir4elec06_retracing.dat
-Output file: /home/trh/data/mirror/base/curvedspacedmir4elec07_retracing.dat
-Column file: /home/trh/data/mirror/base/mir_curved4_col09_retracing.dat
-Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir4elec07_retracing.npy
+Input file: /home/trh/data/mirror/4elec/curvedspacedmir4elec06_retracing.dat
+Output file: /home/trh/data/mirror/4elec/curvedspacedmir4elec07_retracing.dat
+Column file: /home/trh/data/mirror/4elec/mir_curved4_col09_retracing.dat
+Initial simplex: /home/trh/data/mirror/4elec/initial_simplex_for_curvedspacedmir4elec07_retracing.npy
 Voltages: -500,6905,300000,200000
 Flags: f,v1,v2,f
 Curved mirror: True

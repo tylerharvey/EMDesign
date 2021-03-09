@@ -1,6 +1,6 @@
-Input file: /home/trh/data/mirror/base/curvedspacedmir4elec05.dat
-Output file: /home/trh/data/mirror/base/curvedspacedmir4elec06.dat
-Column file: /home/trh/data/mirror/base/mir_curved4_col06.dat
+Input file: /home/trh/data/mirror/4elec/curvedspacedmir4elec05.dat
+Output file: /home/trh/data/mirror/4elec/curvedspacedmir4elec06.dat
+Column file: /home/trh/data/mirror/4elec/mir_curved4_col06.dat
 Initial simplex: None
 z_min bound (mm): -10
 z_max bound (mm): 250

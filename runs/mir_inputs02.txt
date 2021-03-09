@@ -1,6 +1,6 @@
-Input file: /home/trh/data/mirror/base/spacedmir5elec01.dat
-Output file: /home/trh/data/mirror/base/spacedmir5elec02.dat
-Column file: /home/trh/data/mirror/base/mir_col02.dat
+Input file: /home/trh/data/mirror/flat/spacedmir5elec01.dat
+Output file: /home/trh/data/mirror/flat/spacedmir5elec02.dat
+Column file: /home/trh/data/mirror/flat/mir_col02.dat
 Initial simplex: None
 z_min bound: -10
 z_max bound: 150

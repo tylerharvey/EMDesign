@@ -1,0 +1,21 @@
+Input file: /home/trh/data/mirror/4elec/curvedspacedmir4elec07_retracing_man_ret.dat
+Output file: /home/trh/data/mirror/4elec/curvedspacedmir4elec10_retracing.dat
+Column file: /home/trh/data/mirror/4elec/mir_curved4_col12_retracing.dat
+Initial simplex: None
+Voltages: -500,6500,29000,200000
+Flags: f,v1,v2,f
+Curved mirror: True
+End r indices: 11,21,31,41
+z-curve r indices: 21,31
+Simplex scale (mm): 2
+Voltage scale (ln(V)): 0.5
+Image position (mm): 100
+Beam energy (V): 200000
+Max Function Evaluations in Minimizer: 10000
+
+Comments:
+/home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir4elec07_retracing.npy
+Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir4elec01.npy
+Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir5elec01.npy
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
+
