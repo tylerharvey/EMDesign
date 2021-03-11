@@ -63,16 +63,26 @@ class OpticalColumn:
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
     timeout = 10*60 # 10 minutes
 
-    def __init__(self, oe):
+    def __init__(self, oe=None, obj=None,mir=None,tl_list=None):
         '''
         Parameters:
             oe : OpticalElement object
                 passed to self.oe for usage of oe methods and attributes.
         '''
 
-        self.dirname = oe.dirname
-        self.oe_list = [oe] # will need to be changed to allow multiple optical elements
-        self.oe = oe # will need to be changed to allow multiple optical elements
+        if(oe == None):
+            self.obj = obj
+            self.mir = mir
+            self.tl_list = tl_list
+            self.oe_list = [obj]+tl_list+[mir]
+            self.dirname = obj.dirname
+            self.oe = obj
+            self.single = False
+        else:
+            self.dirname = oe.dirname
+            self.oe_list = [oe] 
+            self.oe = oe 
+            self.single = True
         self.img_source_offset = 0.0001
 
     def calc_rays(self):
