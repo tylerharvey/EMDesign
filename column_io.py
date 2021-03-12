@@ -241,12 +241,14 @@ class OpticalColumn:
                 Polar angle (deg) of initial direction. 0 for forwards 
                 propagation or 180 for reverse. 
                 Default 180.
-            lens_type : str
-                Type of lens: 'Electrostatic' or 'Magnetic'. Multiple
-                lenses not yet implemented.
+            lens_type : str 
+                Type of lens: 'Electrostatic' or 'Magnetic'. 
+                Unused for multi-element columns.
                 Default 'Electrostatic'.
             lens_pos : float
-                Lens z position (mm). Default 10. **
+                Lens z position (mm). 
+                Unused for multi-element columns.
+                Default 10. **
             lens_excitation : string
                 Specifies excitation strength of magnetic round lens or
                 magnetic or electric multipole. Contains a floating point 
@@ -254,11 +256,14 @@ class OpticalColumn:
                 electric. Flag options are f for fixed, vn for variable, where
                 n is an integer grouping lenses varied together (e.g. v1)
                 during autofocusing, or d for dynamic. The purpose of the 
-                dynamic option is unclear. Default None for unused.
+                dynamic option is unclear. 
+                Use None if unused or for multi-element columns.
+                Default None.
             potentials : MirPotentials instance
                 The MirPotentials class is used to sensibly store and format the 
                 string used for specifying the potentials of several electrodes.
-                Default None for unused. **
+                Use None if unused or for multi-element columns.
+                Default None. **
             screen_pos : float
                 Screen plane z position (mm). End position of rays for auto-
                 focusing. Default 95.
@@ -304,11 +309,34 @@ class OpticalColumn:
         self.mircondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth, precision=precision)
         cf = open(self.raytracefile,'w') 
         cf.write(f'Title raytrace file for {mircondfilename}\n\n')
-        cf.write(f'\n{lens_type} lens\n')
-        cf.write(self.imgcondsubprop_fmt.format("Filename")+self.imgcondtext_fmt.format(self.oe.basename_noext)+"\n")
-        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(lens_pos)+"\n")
-        cf.write(self.imgcondsubprop_fmt.format("Potentials")+
-                 self.imgcondtext_fmt.format(potentials.format_noflag())+"\n")
+        if(col.single):
+            cf.write(f'\n{lens_type} lens\n')
+            cf.write(self.imgcondsubprop_fmt.format("Filename")+
+                     self.imgcondtext_fmt.format(self.oe.basename_noext)+"\n")
+            cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(lens_pos)+"\n")
+            if(potentials):
+                cf.write(self.imgcondsubprop_fmt.format("Potentials")+
+                         self.imgcondtext_fmt.format(potentials.format_noflag())+"\n")
+            elif(lens_excitation):
+                cf.write(self.imgcondsubprop_fmt.format("Excitation")+
+                         self.imgcondtext_fmt.format(lens_excitation.split('v')[0].split('f')[0])+"\n")
+                                                                # strips off flags
+            else:
+                raise ValueError('No potentials or lens excitation defined!')
+
+        else:
+            for oe in self.oe_list:
+                cf.write(f'\n{oe.lens_type} lens\n')
+                cf.write(self.imgcondsubprop_fmt.format("Filename")+
+                         self.imgcondtext_fmt.format(oe.basename_noext)+"\n")
+                cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(oe.lens_pos)+"\n")
+                if(oe.potentials):
+                    cf.write(self.imgcondsubprop_fmt.format("Potentials")+
+                             self.imgcondtext_fmt.format(oe.potentials.format_noflag())+"\n")
+                else:
+                    cf.write(self.imgcondsubprop_fmt.format("Excitation")+
+                             self.imgcondtext_fmt.format(oe.excitation.split('v')[0].split('f')[0])+"\n")
+
         cf.write('\n')
         cf.write(self.imgcondsubprop_fmt.format("Time step factor")+self.mircondfloat_fmt.format(0.1)+"\n")
         cf.write(self.imgcondsubprop_fmt.format("Screen plane")+self.mircondfloat_fmt.format(screen_pos)+"\n")
@@ -347,6 +375,14 @@ class OpticalColumn:
             cf.write('\nElectrostatic Equipotentials\n')
             for pot in pot_range:
                 cf.write(rayfloat_fmt.format(pot)+'\n')
+        elif(hasattr(self.mir,potentials)):
+            pot_min = min(self.mir.potentials.voltages)
+            pot_max = max(self.mir.potentials.voltages)
+            pot_range = np.linspace(pot_min, pot_max, n_equipotentials, endpoint=True)
+            cf.write('\nElectrostatic Equipotentials\n')
+            for pot in pot_range:
+                cf.write(rayfloat_fmt.format(pot)+'\n')
+
         cf.close()
         cf = None
 
@@ -413,12 +449,17 @@ class OpticalColumn:
                 "GAUSSIAN".
             lens_type : string
                 Specifies type of lens. Multiple lenses to be implemented.
-                Options are "MAGNETIC" and "ELECTROSTATIC". Default
-                "ELECTROSTATIC".
+                Options are "MAGNETIC" and "ELECTROSTATIC". 
+                Unused for multi-element columns.
+                Default "ELECTROSTATIC".
             lens_pos : float
-                Lens z position (mm). Default 10. **
+                Lens z position (mm). 
+                Unused for multi-element columns.
+                Default 10. **
             lens_scale : float
-                Scale factor to be applied to spatial extent of lens. Default 1.
+                Scale factor to be applied to spatial extent of lens. 
+                Unused for multi-element columns.
+                Default 1.
             lens_excitation : string
                 Specifies excitation strength of magnetic round lens or
                 magnetic or electric multipole. Contains a floating point 
@@ -426,11 +467,14 @@ class OpticalColumn:
                 electric. Flag options are f for fixed, vn for variable, where
                 n is an integer grouping lenses varied together (e.g. v1)
                 during autofocusing, or d for dynamic. The purpose of the 
-                dynamic option is unclear. Default None for unused.
+                dynamic option is unclear. 
+                Use None if unused or for multi-element columns.
+                Default None.
             potentials : MirPotentials instance
                 The MirPotentials class is used to sensibly store and format the 
                 string used for specifying the potentials of several electrodes.
-                Default None for unused. **
+                Use None if unused or for multi-element columns.
+                Default None. **
             ray_method : string
                 Specifies whether rays are computed cylindrically symmetrically
                 ("R") or in full x-y-z space ("XY"). Default "R".
@@ -519,15 +563,33 @@ class OpticalColumn:
                  self.mircondfloat_fmt.format(energy_width)+"\n")
         cf.write(self.imgcondsubprop_fmt.format("Energy distribution")+self.imgcondtext_fmt.format(energy_dist)+"\n")
         cf.write(self.imgcondsubprop_fmt.format("Beam current")+self.mircondfloat_fmt.format(1)+"\n")
-        cf.write("\nLENS\n")
-        cf.write(self.imgcondsubprop_fmt.format("File")+self.imgcondtext_fmt.format(self.oe.fitname)+"\n")
-        cf.write(self.imgcondsubprop_fmt.format("Type")+self.imgcondtext_fmt.format(lens_type)+"\n")
-        cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(lens_pos)+"\n")
-        cf.write(self.imgcondsubprop_fmt.format("Size")+self.mircondfloat_fmt.format(lens_scale)+"\n")
-        if(lens_excitation is not None): 
-            cf.write(self.imgcondsubprop_fmt.format("Excitation")+self.mircondfloat_fmt.format(lens_excitation)+"\n")
-        if(potentials is not None): 
-            cf.write(self.imgcondsubprop_fmt.format("Potentials")+self.imgcondtext_fmt.format(potentials.format())+"\n")
+        if(col.single):
+            cf.write("\nLENS\n")
+            cf.write(self.imgcondsubprop_fmt.format("File")+self.imgcondtext_fmt.format(self.oe.fitname)+"\n")
+            cf.write(self.imgcondsubprop_fmt.format("Type")+self.imgcondtext_fmt.format(lens_type)+"\n")
+            cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(lens_pos)+"\n")
+            cf.write(self.imgcondsubprop_fmt.format("Size")+self.mircondfloat_fmt.format(lens_scale)+"\n")
+            if(potentials):
+                cf.write(self.imgcondsubprop_fmt.format("Potentials")+
+                         self.imgcondtext_fmt.format(potentials.format())+"\n")
+            elif(lens_excitation):
+                cf.write(self.imgcondsubprop_fmt.format("Excitation")+
+                         self.mircondfloat_fmt.format(lens_excitation)+"\n")
+            else:
+                raise ValueError('No potentials or lens excitation defined!')
+        else:
+            for oe in self.oe_list:
+                cf.write("\nLENS\n")
+                cf.write(self.imgcondsubprop_fmt.format("File")+self.imgcondtext_fmt.format(oe.fitname)+"\n")
+                cf.write(self.imgcondsubprop_fmt.format("Type")+self.imgcondtext_fmt.format(oe.lens_type)+"\n")
+                cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(oe.lens_pos)+"\n")
+                cf.write(self.imgcondsubprop_fmt.format("Size")+self.mircondfloat_fmt.format(oe.lens_scale)+"\n")
+                if(oe.potentials):
+                    cf.write(self.imgcondsubprop_fmt.format("Potentials")+
+                             self.imgcondtext_fmt.format(oe.potentials.format())+"\n")
+                else:
+                    cf.write(self.imgcondsubprop_fmt.format("Excitation")+
+                             self.mircondfloat_fmt.format(oe.lens_excitation)+"\n")
         cf.write("\nGAUSSIAN IMAGE PLANE\n")
         cf.write(self.imgcondsubprop_fmt.format("Position")+self.mircondfloat_fmt.format(img_pos)+"\n")
         cf.write("\nSCREEN\n")
@@ -624,6 +686,8 @@ class OpticalColumn:
         self.program = 'optics'
         for oe in self.oe_list:
             oe.program = 'optics'
+        if(self.single == False):
+            raise NotImplementedError
         self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth, precision=precision)
         self.lensfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth, precision=precision)
         self.imgcondfilename = imgcondfilename

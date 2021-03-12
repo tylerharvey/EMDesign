@@ -887,6 +887,8 @@ class WeakMagLens(StrongMagLens):
     relative magnetic permeability to represent magnetic materials and uses
     explicitly included coils.'''
     
+    lens_type = 'magnetic'
+
     def initialize_lists(self):
         # N relative permeabilities for each magnetic material quad
         self.mag_mat_mu_r = [] 
@@ -961,6 +963,8 @@ class WeakMagLens_PP_Region(WeakMagLens):
     # 1  25.0
     # 20 25.0
     # 1  0.0    <- MEBS decides this is a new section (?)
+
+    lens_type = 'magnetic'
 
     def initialize_lists(self):
         self.boundary_coil_indices = [] 
