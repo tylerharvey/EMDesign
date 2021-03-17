@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 from optical_element_io import cd, index_array_from_list, np_index
-from calculate_optical_properties import calc_properties_optics, calc_properties_mirror
+from calculate_optical_properties import calc_properties_optics, calc_properties_mirror, calc_properties_mirror_multi
 import scipy.stats as st
 import asyncio
 from shapely.geometry import *
@@ -61,6 +61,25 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     retracing = col.evaluate_retracing()
     print(f'Retrace deviation: {retracing}')
     return retracing
+
+def change_column_and_calculate_mag(col_vars,col,kwargs):
+    # lens_pos, lens_scale, lens_excitation
+    i = 0
+    for oe in col.oe_list:
+        if(oe.pos_adj == True):
+            oe.lens_pos = col_vars[i]
+            i += 1
+        # if(oe.scale_adj == True): # not really necessary for mag adj
+        #     oe.lens_scale = col_vars[i]
+        #     i += 1
+        if(oe.f_adj == True):
+            oe.lens_excitation = col_vars[i]
+            i += 1
+
+    col.write_mir_img_cond_file(col.mircondfilename,**kwargs)
+    calc_properties_mirror_multi(col)
+    col.read_mir_optical_properties(raytrace=False)
+    return 1/np.abs(col.mag)
 
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
 

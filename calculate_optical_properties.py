@@ -74,6 +74,25 @@ async def run_herm_then_mirror(oe,col,nterms):
     except asyncio.TimeoutError:
         raise asyncio.TimeoutError
 
+async def run_herm_then_mirror_multi(col,nterms):
+    for oe in col.oe_list:
+        symstring = 'AN' if oe.mirror else 'NN'
+        if(oe.mirror):
+            user_input = 'Y\n' if oe.curved_mirror else 'N\n'
+        else:
+            user_input = None
+            
+        try:
+            await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
+                                                                user_input=user_input,verbose=oe.verbose)
+        except asyncio.TimeoutError:
+            raise asyncio.TimeoutError
+
+    try:
+        await run_async(['MIRROR.exe',col.mircondbasename_noext],timeout=col.timeout,verbose=oe.verbose)
+    except asyncio.TimeoutError:
+        raise asyncio.TimeoutError
+
 # takes optical_element object (oe) as argument
 def calc_properties_mirror(oe,col,nterms=50):
     '''
@@ -100,10 +119,32 @@ def calc_properties_mirror(oe,col,nterms=50):
             asyncio.run(run_herm_then_mirror(oe,col,nterms))
         except asyncio.TimeoutError:
             raise asyncio.TimeoutError
-        # output = subprocess.run(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],stdout=outputmode,timeout=oe.timeout).stdout
-        # print(output.decode('utf-8')) if oe.verbose else 0
-        # output = subprocess.run(['MIRROR.exe',oe.mircondbasename_noext],stdout=outputmode,timeout=oe.timeout).stdout
-        # print(output.decode('utf-8')) if oe.verbose else 0
+
+def calc_properties_mirror_multi(col,nterms=50):
+    '''
+    Function for calculating optical properties of optical columns
+    MIRROR. Implemented for a multi-element column. Also compatible
+    with single-element columns.
+
+    Parameters:
+        oe : OpticalElement object 
+            optical element for which to calculate optical properties.
+
+    Optional parameters:
+        nterms : int
+            number of terms to use in hermite series to approximate field.
+            default 50
+        mirror : bool
+            Indicates whether optical element includes a mirror. Default True.
+        curved_mirror : bool
+            Indicates whether optical element includes a curved mirror.
+            Default False.
+    '''
+    with cd(col.dirname):
+        try:
+            asyncio.run(run_herm_then_mirror_multi(col,nterms))
+        except asyncio.TimeoutError:
+            raise asyncio.TimeoutError
 
 # oe not a strictly necessary argument here if oe.verbose is passed to col
 # leaving for consistency

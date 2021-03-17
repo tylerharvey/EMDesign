@@ -15,6 +15,7 @@ from automation_library import calculate_c3, \
                                change_voltages_and_shape_and_check_retracing, \
                                change_voltages_and_check_retracing, \
                                change_imgplane_and_calculate, \
+                               change_column_and_calculate_mag, \
                                change_n_quads_and_calculate, \
                                determine_img_pos_limits, \
                                generate_initial_simplex, \
@@ -174,14 +175,14 @@ def optimize_broadly_for_retracing(
     if(oe.plot):
         col.plot_rays()
 
-def optimize_voltages_for_retracing(col, potentials, img_pos, bounds=None, options=None, **kwargs):
+def optimize_voltages_for_retracing(col, potentials, img_pos, options=None, **kwargs):
     potentials.voltages = np.array(potentials.voltages) 
     flag_mask = np.array(potentials.flags) != 'f'
     voltages = potentials.voltages[flag_mask]
     initial_parameters = np.append(voltages, img_pos) # [v_1, ... , v_n, img_pos]
     result = minimize(change_voltages_and_check_retracing, initial_parameters,
                       args=(col, potentials, flag_mask, kwargs),
-                      method='Nelder-Mead', bounds=bounds, options=options)
+                      method='Nelder-Mead', options=options)
     print(result)
     potentials.voltages[flag_mask] = result.x[:-1]
     img_pos = result.x[-1]
@@ -194,6 +195,42 @@ def optimize_voltages_for_retracing(col, potentials, img_pos, bounds=None, optio
     if(col.oe.plot):
         col.plot_rays()
 
+def optimize_column_for_mag(col,options=None,**kwargs):
+    '''
+    Automatic optimization of magnification of a set of optical elements.
+
+    Parameters:
+        col : OpticalColumn object
+            col must be initialized as a multi-element column with at least
+            two optical elements. The elements must have values for flags
+            oe.pos_adj and oe.f_adj, which determine if element position and 
+            element focal length are adjusted, and initial values for 
+            oe.lens_pos and oe.lens_excitation.
+    
+    Optional parameters:
+        options : dict
+            Passed to minimize(). 
+            Default None.
+        **kwargs
+            kwargs passed to write_mir_img_cond_file and write_raytrace_file.
+    '''
+
+    col_vars = []
+    i = 0
+    for oe in col.oe_list:
+        if(oe.pos_adj == True):
+            col_vars.append(oe.lens_pos)
+            i += 1
+        if(oe.f_adj == True):
+            col_vars.append(oe.lens_excitation)
+            i += 1
+        oe.calc_field()
+
+    result = minimize(change_column_and_calculate_mag, col_vars, 
+                      args=(col,kwargs), method='Nelder-Mead', options=options)
+    print(f'Resulting magnification: {change_column_and_calculate_mag(result.x,col,kwargs)}')
+    col.write_mir_img_cond_file(col.mircondfilename, **kwargs)
+    col.write_raytrace_file(col.mircondfilename, **kwargs)
 
 def optimize_many_shapes(
         oe, col, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None,
