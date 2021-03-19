@@ -11,6 +11,30 @@ class Point(object):
     def __eq__(self,other):
         return self.__dict__ == other.__dict__
         
+def optimize_image_plane(oe, min_dist=3, image_plane=6):
+    '''
+    In principle, could be used to find the optimal image plane to minimize
+    spherical aberration. In practice, that is always zero distance from the
+    object plane, so needs to be rewritten to be useful.
+    '''
+    initial_plane = [image_plane] # mm
+    bounds = [(min_dist,100)]
+    oe.automated = True
+    result = minimize(change_imgplane_and_calculate, initial_plane, args=(oe), bounds=bounds, method='TNC', 
+                      options={'eps':0.5,'stepmx':5,'minfev':1})
+    change_imgplane_and_calculate(result.x, oe)
+    print('Optimization complete')
+
+def change_imgplane_and_calculate(imgplane, oe):
+    oe.write_opt_img_cond_file(oe.imgcondfilename, img_pos=imgplane[0])
+    calc_properties_optics(oe)
+    try: 
+        oe.read_optical_properties()
+    except UnboundLocalError: # if optics fails, return garbage
+        return 100
+    print(f"f: {col.f}, C3: {col.c3}")
+    return np.abs(col.c3)
+
 # always returns true with present definition of fine mesh
 # define_exhaustive would make this work
 def does_fine_mesh_intersect(oe):

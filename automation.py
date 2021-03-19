@@ -9,12 +9,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from contextlib import contextmanager
 from scipy.optimize import minimize, minimize_scalar
+from calculate_optical_properties import calc_properties_optics
 # from shapely.geometry import *
 from automation_library import calculate_c3, \
                                change_image_plane_and_check_retracing, \
                                change_voltages_and_shape_and_check_retracing, \
                                change_voltages_and_check_retracing, \
-                               change_imgplane_and_calculate, \
                                change_column_and_calculate_mag, \
                                change_n_quads_and_calculate, \
                                determine_img_pos_limits, \
@@ -195,7 +195,8 @@ def optimize_voltages_for_retracing(col, potentials, img_pos, options=None, **kw
     if(col.oe.plot):
         col.plot_rays()
 
-def optimize_column_for_mag(col,options=None,**kwargs):
+def optimize_column_for_mag(col,img_pos=50,options=None, lens_pos_min=0, lens_pos_max=2000, 
+                            curr_bound=3, img_pos_min=0, img_pos_max=2000, **kwargs):
     '''
     Automatic optimization of magnification of a set of optical elements.
 
@@ -215,22 +216,41 @@ def optimize_column_for_mag(col,options=None,**kwargs):
             kwargs passed to write_mir_img_cond_file and write_raytrace_file.
     '''
 
+
+    bounds = []
     col_vars = []
     i = 0
     for oe in col.oe_list:
         if(oe.pos_adj == True):
             col_vars.append(oe.lens_pos)
+            bounds.append((lens_pos_min,lens_pos_max))
             i += 1
         if(oe.f_adj == True):
             col_vars.append(oe.lens_excitation)
+            if(oe.lens_type == 'magnetic'):
+                coil_area = 0
+                for j in range(len(oe.coil_z_indices)):
+                    coil_area += oe.determine_quad_area(oe.coil_z_indices[j], oe.coil_r_indices[j])
+                total_curr_bound = coil_area*curr_bound # curr_bound is current density
+                bounds.append((-total_curr_bound,total_curr_bound))
             i += 1
         oe.calc_field()
 
+
+    col_vars.append(img_pos)
+    bounds.append((img_pos_min,img_pos_max))
+
+    col.write_opt_img_cond_file(col.imgcondfilename, img_pos=img_pos, **kwargs)
+    calc_properties_optics(col)
+    col.read_optical_properties()
+    print(f'Initial_magnification: {col.mag}')
+
     result = minimize(change_column_and_calculate_mag, col_vars, 
-                      args=(col,kwargs), method='Nelder-Mead', options=options)
-    print(f'Resulting magnification: {change_column_and_calculate_mag(result.x,col,kwargs)}')
-    col.write_mir_img_cond_file(col.mircondfilename, **kwargs)
-    col.write_raytrace_file(col.mircondfilename, **kwargs)
+                      args=(col,np.array(bounds),kwargs), method='Nelder-Mead', options=options)
+    print(f'Resulting magnification: {1/change_column_and_calculate_mag(result.x,col,np.array(bounds),kwargs)}')
+    col.write_opt_img_cond_file(col.imgcondfilename, img_pos=result.x[-1], **kwargs)
+    # col.write_mir_img_cond_file(col.mircondfilename, **kwargs)
+    # col.write_raytrace_file(col.mircondfilename, **kwargs)
 
 def optimize_many_shapes(
         oe, col, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None,
@@ -357,18 +377,4 @@ def optimize_many_shapes(
         col.raytrace_from_saved_values()
     if(method=='Nelder-Mead' and options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
-
-def optimize_image_plane(oe, min_dist=3, image_plane=6):
-    '''
-    In principle, could be used to find the optimal image plane to minimize
-    spherical aberration. In practice, that is always zero distance from the
-    object plane, so needs to be rewritten to be useful.
-    '''
-    initial_plane = [image_plane] # mm
-    bounds = [(min_dist,100)]
-    oe.automated = True
-    result = minimize(change_imgplane_and_calculate, initial_plane, args=(oe), bounds=bounds, method='TNC', 
-                      options={'eps':0.5,'stepmx':5,'minfev':1})
-    change_imgplane_and_calculate(result.x, oe)
-    print('Optimization complete')
 

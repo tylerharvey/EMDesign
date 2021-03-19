@@ -146,32 +146,30 @@ def calc_properties_mirror_multi(col,nterms=50):
         except asyncio.TimeoutError:
             raise asyncio.TimeoutError
 
-# oe not a strictly necessary argument here if oe.verbose is passed to col
-# leaving for consistency
-def calc_properties_optics(oe,col,i=0,max_attempts=3):
+def calc_properties_optics(col,i=0,max_attempts=3):
     '''
     function for calculating optical properties of electric or magnetic lenses
     with OPTICS ABER5. 
 
     Parameters:
-        oe : OpticalElement object 
-            optical element for which to calculate optical properties.
+        col : OpticalColumn object 
+            optical column for which to calculate optical properties.
     '''
-    with cd(oe.dirname):
-        outputmode = subprocess.PIPE if oe.verbose else None
+    with cd(col.dirname):
+        outputmode = subprocess.PIPE if col.verbose else None
         if(os.path.exists(col.imgcondfilename) != True):
             print('No optical imaging conditions file found. Run OpticalElement.write_opt_img_cond_file() first.')
             raise FileNotFoundError
         try:
             output = subprocess.run(['OPTICS.exe','ABER',col.imgcondbasename_noext],stdout=outputmode,timeout=col.timeout).stdout
-            print(output.decode('utf-8')) if oe.verbose else 0
+            print(output.decode('utf-8')) if col.verbose else 0
         except TimeoutExpired:
             i+=1
             print('Optical properties calculation failed. Rerunning.')
             if(i > max_attempts):
                 raise TimeoutExpired
             else:
-                calc_properties_optics(oe,col,i)
+                calc_properties_optics(col,i)
         except AttributeError:
             print('OpticalElement.imagecondbasename_noext not set. Run '
                   'OpticalElement.write_opt_img_cond_file() first.') 

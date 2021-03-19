@@ -83,16 +83,19 @@ class OpticalColumn:
                 self.oe_list.append(mir)
             self.oe = tl_list[0]
             self.dirname = self.oe.dirname
+            self.verbose = self.oe.verbose
             self.single = False
         elif(oe_list):
             self.oe_list = oe_list
             self.oe = tl_list[0]
             self.dirname = self.oe.dirname
+            self.verbose = self.oe.verbose
             self.single = False
         else:
             self.dirname = oe.dirname
             self.oe_list = [oe] 
             self.oe = oe 
+            self.verbose = oe.verbose
             self.single = True
         self.img_source_offset = 0.0001
 
@@ -705,8 +708,6 @@ class OpticalColumn:
         self.program = 'optics'
         for oe in self.oe_list:
             oe.program = 'optics'
-        if(self.single == False):
-            raise NotImplementedError
         self.imgcondfloat_fmt = self.rfloat_fmt.substitute(imgcondcolwidth=self.imgcondcolwidth, precision=precision)
         self.lensfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth, precision=precision)
         self.imgcondfilename = imgcondfilename
@@ -731,12 +732,38 @@ class OpticalColumn:
         cf.write(self.imgcondprop_fmt.format("Energy Spread")+self.imgcondfloat_fmt.format(energy_width)+'\n')
         cf.write(self.imgcondprop_fmt.format("Beam Voltage")+self.imgcondfloat_fmt.format(energy)+'\n')
         cf.write('\n')
-        cf.write('Magnetic Lens\n')
-        cf.write('\n')
-        cf.write(self.lensfloat_fmt.format(lens_pos)+self.lensfloat_fmt.format(lens_strength))
-        cf.write(self.lensfloat_fmt.format(lens_scale)+self.int_fmt.format(auto_focus)+
-                 "{:>40s}".format(self.oe.potname)+'\n')
-        cf.write('\n')
+        if(self.single and oe.lens_type == 'magnetic'):
+            cf.write('Magnetic Lens\n')
+            cf.write('\n')
+            cf.write(self.lensfloat_fmt.format(lens_pos)+self.lensfloat_fmt.format(lens_strength))
+            cf.write(self.lensfloat_fmt.format(lens_scale)+self.int_fmt.format(auto_focus)+
+                     "{:>40s}".format(self.oe.potname)+'\n')
+            cf.write('\n')
+        elif(self.single and oe.lens_type == 'electrostatic'):
+            raise NotImplementedError('Electric lenses not yet implemented here; use MIRROR functions instead.')
+        elif(self.single == False):
+            magnetic_label = False
+            for oe in self.oe_list:
+                # OPTICS formats multiple lenses as
+                # Lens Type
+                #    lens 1
+                # 
+                #    lens 2 ....
+                # 
+                # Other Lens Type
+                if(oe.lens_type == 'magnetic'):
+                    if(magnetic_label == False): 
+                        cf.write('Magnetic Lens\n')
+                        magnetic_label = True
+                    cf.write('\n')
+                    cf.write(self.lensfloat_fmt.format(oe.lens_pos)+self.lensfloat_fmt.format(oe.lens_strength))
+                    cf.write(self.lensfloat_fmt.format(oe.lens_scale)+self.int_fmt.format(auto_focus)+
+                             "{:>40s}".format(oe.potname)+'\n')
+                    cf.write('\n')
+            for oe in self.oe_list:
+                if(oe.lens_type == 'electrostatic'):
+                    raise NotImplementedError('Electric lenses not yet implemented here; use MIRROR functions instead.')
+
         cf.close()
         cf = None
 
@@ -753,22 +780,34 @@ class OpticalColumn:
         properties_lines = pf.readlines()
         # see end of this file for snippets of the .res file 
         # that are relevant to this parameter extraction
+        n_lenses = len(self.oe_list)
         for i,line in enumerate(properties_lines):
             if 'FIRST-ORDER PROPERTIES' in line:
-                linenum_mag = i+10
-                linenum_rot = i+11
-                linenum_curr = i+5
-            if 'Magnetic Lens      No.  1' in line: # change if more lenses
-                linenum_f = i+9
-                linenum_f_real = i+5
+                linenum_mag = i+9+n_lenses
+                linenum_rot = i+10+n_lenses
+                if(n_lenses > 1):
+                    linenum_curr = []
+                    for j in range(n_lenses):
+                        linenum_curr.append(i+5+j)
+                else:
+                    linenum_curr = i+5
+            if 'Magnetic Lens      No.  1' in line: 
+                linenum_f = i+8+n_lenses
+                linenum_f_real = i+4+n_lenses
             if 'THIRD-ORDER ABERRATION COEFFICIENTS   (in S.I. units)' in line:
                 linenum_c3 = i+9
             if ' ***** CHROMATIC AB *****' in line:
                 linenum_cc = i+3
         self.mag = float(properties_lines[linenum_mag].split()[3])
         self.rot = float(properties_lines[linenum_rot].split()[5]) # deg
-        self.lens_curr = float(properties_lines[linenum_curr].split()[7])
-        self.oe.lens_curr = self.lens_curr
+        if(n_lenses > 1):
+            self.lens_curr = []
+            for j,oe in enumerate(self.oe_list):
+                self.lens_curr.append(float(properties_lines[linenum_curr[j]].split()[7]))
+                oe.lens_curr = self.lens_curr[-1]
+        else:
+           self.lens_curr = float(properties_lines[linenum_curr].split()[7])
+           self.oe.lens_curr = self.lens_curr
         ## I didn't need to implement this yet
         # self.lens_curr = []
         # i = 0

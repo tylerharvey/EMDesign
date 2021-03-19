@@ -769,6 +769,7 @@ class StrongMagLens(OpticalElement):
     '''
 
     lens_type = 'magnetic'
+    lens_strength = 1
 
     def initialize_lists(self):
         # N two-element arrays for the r and z indices of 

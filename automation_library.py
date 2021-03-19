@@ -16,16 +16,6 @@ class TimeoutCheck:
     def __init__(self):
         self.timed_out = False
 
-def change_imgplane_and_calculate(imgplane, oe):
-    oe.write_opt_img_cond_file(oe.imgcondfilename, img_pos=imgplane[0])
-    calc_properties_optics(oe)
-    try: 
-        oe.read_optical_properties()
-    except UnboundLocalError: # if optics fails, return garbage
-        return 100
-    print(f"f: {col.f}, C3: {col.c3}")
-    return np.abs(col.c3)
-
 def change_image_plane_and_check_retracing(img_pos, col, kwargs):
     col.write_raytrace_file(col.mircondfilename, source_pos=img_pos-col.img_source_offset, 
                             screen_pos=img_pos, minimum_rays=True,**kwargs)
@@ -62,23 +52,33 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     print(f'Retrace deviation: {retracing}')
     return retracing
 
-def change_column_and_calculate_mag(col_vars,col,kwargs):
-    # lens_pos, lens_scale, lens_excitation
+def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
+    # check bounds
+    lb_nn = (bounds[:,0] != None)
+    ub_nn = (bounds[:,1] != None)
+    if((bounds[:,0][lb_nn] > col_vars[lb_nn]).any() or (bounds[:,1][ub_nn] < col_vars[ub_nn]).any()):
+        print('Hit bounds')
+        print(bounds,col_vars)
+        return 1000
+
     i = 0
     for oe in col.oe_list:
         if(oe.pos_adj == True):
             oe.lens_pos = col_vars[i]
             i += 1
-        # if(oe.scale_adj == True): # not really necessary for mag adj
-        #     oe.lens_scale = col_vars[i]
-        #     i += 1
         if(oe.f_adj == True):
             oe.lens_excitation = col_vars[i]
             i += 1
 
-    col.write_mir_img_cond_file(col.mircondfilename,**kwargs)
-    calc_properties_mirror_multi(col)
-    col.read_mir_optical_properties(raytrace=False)
+    img_pos = col_vars[-1]
+
+    col.write_opt_img_cond_file(col.imgcondfilename, img_pos=img_pos, **kwargs)
+    calc_properties_optics(col)
+    col.read_optical_properties()
+    # col.write_mir_img_cond_file(col.mircondfilename,**kwargs)
+    # calc_properties_mirror_multi(col)
+    # col.read_mir_optical_properties(raytrace=False)
+    print(col.mag)
     return 1/np.abs(col.mag)
 
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
@@ -127,7 +127,7 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
     oe.calc_field()
     if(col.program == 'optics'):
         try:
-            calc_properties_optics(oe, col)
+            calc_properties_optics(col)
         except TimeoutExpired: # if optics has failed over and over again, bail
             t.timed_out = True
             return 10000 # likely dongle error
@@ -144,7 +144,7 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
     except UnboundLocalError: # if optics fails, return garbage
         return 100
     print(f"f: {col.f}, C3: {col.c3}")
-    if(curr_bound):
+    if(curr_bound): # only works on single lens
         coil_area = 0
         for i in range(len(oe.coil_z_indices)):
             coil_area += oe.determine_quad_area(oe.coil_z_indices[i], oe.coil_r_indices[i])
