@@ -30,7 +30,7 @@ obj.write(new_filename)
 col = OpticalColumn(obj)
 col.write_opt_img_cond_file(opt_img_cond_filename,obj_pos=obj_pos,img_pos=img_pos,energy=energy)
 obj.calc_field()
-calc_properties_optics(obj,col)
+calc_properties_optics(col)
 col.read_optical_properties()
 
 initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filename)
