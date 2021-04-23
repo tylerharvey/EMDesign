@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from optical_element_io import *
 from column_io import OpticalColumn
 from calculate_optical_properties import calc_properties_optics
-from automation import optimize_single_current, optimize_image_plane, optimize_many_shapes
+from automation import optimize_many_shapes
 from importlib import reload
 import sys
 

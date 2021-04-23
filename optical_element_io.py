@@ -147,9 +147,9 @@ class OpticalElement:
             1 outputs data at all FE mesh points.
             2 outputs data at all mesh points and inside magnetic circuits.
         axsym : integer
-            boolean flag used by MEBS to denote the symmetry of the element 
-            through the x-y plane (between positive and negative z), 
-            with 1 true and 0 false.
+            boolean flag used by MEBS to denote whether the element has
+            reflection symmetry of the element through the x-y plane 
+            (between positive and negative z), with 1 true and 0 false.
         r_indices : integer ndarray
             length N 1D array of the radial indices of the FE mesh. first index
             is 1. (denoted I in MEBS manual.) skipped values are interpolated 
@@ -186,9 +186,9 @@ class OpticalElement:
             starts as False and set by mirror_type().
         freeze_xy_plane : bool
             determines whether the z coordinate for points initially along z=0
-            is allowed to move in optimization. starts as True. set to False
-            by mirror_type() if curved_mirror = True. may need to be manually
-            set to False for some optical elements.
+            is allowed to move in optimization. starts as False; set to False
+            by mirror_type() if curved_mirror = True. set to True if 
+            oe.axsym==1.
         freeze_radial_boundary : bool
             determines whether the r coordinate for points initially along 
             r=r_max is allowed to move in optimization. starts as False. set to
@@ -253,7 +253,7 @@ class OpticalElement:
         self.so=so
         self.mirror = False
         self.curved_mirror = False
-        self.freeze_xy_plane = True
+        self.freeze_xy_plane = False
         self.freeze_radial_boundary = False
         self.infile = []
         self.initialize_lists()
@@ -288,6 +288,8 @@ class OpticalElement:
     def read_intro(self):
         self.title = self.infile[0].strip('\n')
         self.output, self.axsym = np.fromstring(self.infile[1],dtype=int,count=2,sep=' ')
+        if(self.axsym == 1):
+            self.freeze_xy_plane = True
     
     def read_mesh(self):
         self.z_indices = np.fromstring(self.infile[3],dtype=int,sep=' ')
