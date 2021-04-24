@@ -465,9 +465,9 @@ class Quad:
         self.edge_points_list = oe.retrieve_single_quad_edge_points(z_indices, r_indices)
         self.original_edge_points_list = self.edge_points_list.copy()
         self.mirrored_edge_points_list, self.edge_points_list = find_mirrored_edge_points(oe, self.edge_points_list) \
-                                                                if separate_mirrored else [],[]
+                                                                if separate_mirrored else [],self.edge_points_list
         self.Rboundary_edge_points_list, self.edge_points_list = find_Rboundary_edge_points(oe, self.edge_points_list) \
-                                                                 if separate_radial_boundary else [],[]
+                                                                 if separate_radial_boundary else [],self.edge_points_list
 
     def delete_overlaps(self, edge_points_list, prior_edge_points_list):
         edge_points_list = [point for point in edge_points_list if point not in prior_edge_points_list]
