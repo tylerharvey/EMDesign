@@ -22,3 +22,5 @@ Usage:
 `optical_element_io` and `column_io` contain functions for reading, writing and manipulating MEBS optical element and column files, respectively. `optical_element_io` also calls the appropriate MEBS binary to calculate fields for the optical element of choice, and `column_io` calls `soray.exe` to calculate rays. `calc_optical_properties` calls the appropriate MEBS binary for optical properties calculations. `automation` contains all top-level automation functions, and `automation_library` contains low-level automation functions. `automation_archive` and `optical_element_archive` contain outdated functions, but could be inspiration for future code. There are several example notebooks at the moment for quick usage of a number of these functions, and more will be added over time.
 
 `lensmin`, `mirmin` and `retracing` accept input files to operate automation functions for lens optimization, mirror optimization, and ray-retrace optimizization, respectively. 
+
+Code has been tested in a small range of use cases so far and is bound to break for MEBS output that looks very different. Please notify us if that happens.
