@@ -11,6 +11,7 @@ Installation:
 < ... >\MEBS\HERM1\bin\CL\
 ```
 (To edit the Windows path, right click on This PC and then select Properties. On the left, click Avdanced System Settings, and Environment Variables at the bottom. Choose PATH in the User variables list and then click Edit.)
+
 3. Install numpy, scipy, matplotlib and Shapely, and Jupyter Lab:
 ```
 pip install numpy scipy matplotlib Shapely jupyterlab
