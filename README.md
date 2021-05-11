@@ -12,11 +12,12 @@ Installation:
 ```
 (To edit the Windows path, right click on This PC and then select Properties. On the left, click Avdanced System Settings, and Environment Variables at the bottom. Choose PATH in the User variables list and then click Edit.)
 
-3. Install numpy, scipy, matplotlib and Shapely, and Jupyter Lab:
+3. Install python 3.8 or later.
+4. numpy, scipy, matplotlib and Shapely, and Jupyter Lab:
 ```
 pip install numpy scipy matplotlib Shapely jupyterlab
 ```
-4. Clone this repository, and it should immediately work if MEBS does.
+5. Clone this repository, and it should immediately work if MEBS does.
 
 Usage:
 `optical_element_io` and `column_io` contain functions for reading, writing and manipulating MEBS optical element and column files, respectively. `optical_element_io` also calls the appropriate MEBS binary to calculate fields for the optical element of choice, and `column_io` calls `soray.exe` to calculate rays. `calc_optical_properties` calls the appropriate MEBS binary for optical properties calculations. `automation` contains all top-level automation functions, and `automation_library` contains low-level automation functions. `automation_archive` and `optical_element_archive` contain outdated functions, but could be inspiration for future code. There are several example notebooks at the moment for quick usage of a number of these functions, and more will be added over time.
