@@ -822,7 +822,7 @@ class StrongMagLens(OpticalElement):
             try:
                 output = subprocess.run(["somlenss.exe",self.basename_noext], stdout=outputmode, 
                                         timeout=self.timeout).stdout
-                self.Mlog.log.info(output.decode('utf-8')) 
+                self.Mlog.log.debug(output.decode('utf-8')) 
             except TimeoutExpired:
                 self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
@@ -872,7 +872,7 @@ class WeakMagLens(StrongMagLens):
         '''
         with cd(self.dirname):
             try:
-                self.Mlog.log.info(subprocess.run(["somlensc.exe",self.basename_noext], stdout=subprocess.PIPE, 
+                self.Mlog.log.debug(subprocess.run(["somlensc.exe",self.basename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 self.olog.log.info('Field calculation timed out. Rerunning.')
@@ -971,7 +971,7 @@ class WeakMagLens_PP_Region(WeakMagLens):
         '''
         with cd(self.dirname):
             try:
-                self.Mlog.log.info(subprocess.run(["somlensp.exe",self.basename_noext], stdout=subprocess.PIPE, 
+                self.Mlog.log.debug(subprocess.run(["somlensp.exe",self.basename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 self.olog.log.info('Field calculation timed out. Rerunning.')
@@ -1123,7 +1123,7 @@ class ElecLens(OpticalElement):
             try:
                 output = subprocess.run(["soelens.exe",self.basename_noext], stdout=outputmode, 
                                         timeout=self.timeout).stdout
-                self.Mlog.log.info(output.decode('utf-8')) 
+                self.Mlog.log.debug(output.decode('utf-8')) 
             except TimeoutExpired:
                 self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()

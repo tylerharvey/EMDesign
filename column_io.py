@@ -105,7 +105,7 @@ class OpticalColumn:
         '''
         with cd(self.dirname):
             try:
-                self.Mlog.log.info(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
+                self.Mlog.log.debug(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 self.olog.log.info('Ray tracing timed out. Rerunnning.')

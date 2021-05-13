@@ -36,23 +36,23 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
         stdin = user_input.encode()
         stdout,stderr = await asyncio.wait_for(proc.communicate(stdin),timeout=timeout)
         if(stdout):
-            Mlog.log.info(f'{stdout.decode()}')
+            Mlog.log.debug(f'{stdout.decode()}')
 
 
     try:
         stdout,stderr = await asyncio.wait_for(proc.communicate(),timeout=timeout)
         if(stdout):
-            Mlog.log.info(f'{stdout.decode()}')
+            Mlog.log.debug(f'{stdout.decode()}')
         # MEBS doesn't generally use STDERR
     except asyncio.TimeoutError:
         i+=1
         proc.kill()
         olog = Logger('output')
         if(i > max_attempts):
-            olog.log.info('Maximum attempts reached.')
+            olog.log.critical('Maximum attempts reached.')
             raise asyncio.TimeoutError
         else:
-            olog.log.info(f'Program {command_and_args[0]} timed out. Rerunning.')
+            olog.log.error(f'Program {command_and_args[0]} timed out. Rerunning.')
             try: 
                 await run_async(command_and_args,i+1,timeout=timeout,user_input=user_input)
             except asyncio.TimeoutError:
@@ -160,20 +160,20 @@ def calc_properties_optics(col,i=0,max_attempts=3):
     with cd(col.dirname):
         outputmode = subprocess.PIPE 
         if(os.path.exists(col.imgcondfilename) != True):
-            olog.log.info('No optical imaging conditions file found. '
+            olog.log.critical('No optical imaging conditions file found. '
                            'Run OpticalElement.write_opt_img_cond_file() first.')
             raise FileNotFoundError
         try:
             output = subprocess.run(['OPTICS.exe','ABER',col.imgcondbasename_noext],stdout=outputmode,timeout=col.timeout).stdout
-            Mlog.log.info(output.decode('utf-8'))
+            Mlog.log.debug(output.decode('utf-8'))
         except TimeoutExpired:
             i+=1
-            olog.log.info('Optical properties calculation failed. Rerunning.')
+            olog.log.error('Optical properties calculation failed. Rerunning.')
             if(i > max_attempts):
                 raise TimeoutExpired
             else:
                 calc_properties_optics(col,i)
         except AttributeError:
-            olog.log.info('OpticalElement.imagecondbasename_noext not set. Run '
+            olog.log.critical('OpticalElement.imagecondbasename_noext not set. Run '
                   'OpticalElement.write_opt_img_cond_file() first.') 
             raise AttributeError

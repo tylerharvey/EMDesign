@@ -158,7 +158,7 @@ def optimize_broadly_for_retracing(
                       args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, kwargs),
                       method='Nelder-Mead', options=options_mutable)
     ilog = Logger('internal')
-    ilog.logger.info(f'Optimize {result=}')
+    ilog.logger.debug(f'Optimize {result=}')
 
     if(options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
@@ -185,7 +185,7 @@ def optimize_voltages_for_retracing(col, potentials, img_pos, options=None, **kw
                       args=(col, potentials, flag_mask, kwargs),
                       method='Nelder-Mead', options=options)
     ilog = Logger('internal')
-    ilog.logger.info(f'Optimize {result=}')
+    ilog.logger.debug(f'Optimize {result=}')
     potentials.voltages[flag_mask] = result.x[:-1]
     img_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
@@ -376,7 +376,7 @@ def optimize_many_shapes(
                           bounds=bounds, method=method, options=options_mutable)
 
     olog.log.info('Optimization complete with success flag {}'.format(result.success))
-    ilog.log.info(result.message)
+    ilog.log.debug(result.message)
     change_n_quads_and_calculate(result.x, oe, col, shape_data)
     if(col.program == 'mirror'):
         col.raytrace_from_saved_values()

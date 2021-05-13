@@ -60,9 +60,9 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     ub_nn = (bounds[:,1] != None)
     if((bounds[:,0][lb_nn] > col_vars[lb_nn]).any() or (bounds[:,1][ub_nn] < col_vars[ub_nn]).any()):
         ilog = Logger('internal')
-        ilog.log.info('Hit bounds')
-        ilog.log.info(f'{bounds=}')
-        ilog.log.info(f'{col_vars=}')
+        ilog.log.warning('Hit bounds')
+        ilog.log.warning(f'{bounds=}')
+        ilog.log.warning(f'{col_vars=}')
         return 1000
 
     i = 0
@@ -83,7 +83,7 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     # calc_properties_mirror_multi(col)
     # col.read_mir_optical_properties(raytrace=False)
     ilog = Logger('internal')
-    ilog.log.info(f'{col.mag=}')
+    ilog.log.debug(f'{col.mag=}')
     return 1/np.abs(col.mag)
 
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
@@ -155,7 +155,7 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
         for i in range(len(oe.coil_z_indices)):
             coil_area += oe.determine_quad_area(oe.coil_z_indices[i], oe.coil_r_indices[i])
         ilog = Logger('internal')
-        ilog.log.info(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
+        ilog.log.debug(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
         # print(f'lens_curr: {oe.lens_curr}; coil_area: {coil_area}; density: {oe.lens_curr/coil_area}; bound: {curr_bound}')
         if(oe.lens_curr/coil_area > curr_bound):
             return 100
@@ -339,7 +339,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
                                                           sigma_l=np.abs(left)/adj, sigma_r=np.abs(right)/adj),
                                                   rng.normal(initial_curve_shape, curve_scale)])
                 adj *= 1.01
-            ilog.log.info(f'Simplex {i+1} of {N+1} complete.')
+            ilog.log.debug(f'Simplex {i+1} of {N+1} complete.')
     else:
         scale_array = np.concatenate([np.full((n_snc),scale,dtype=float), 
                                       np.full((n_curve_points),curve_scale,dtype=float)]) if n_curve_points else scale
@@ -350,7 +350,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
             while(change_n_quads_and_check(simplex[i,:N_s], oe, shape_data, enforce_bounds,
                                            bounds, breakdown_field)):
                 simplex[i,:N_s] = rng.normal(initial_shape, scale_array)
-            ilog.log.info(f'Simplex {i+1} of {N+1} complete.')
+            ilog.log.debug(f'Simplex {i+1} of {N+1} complete.')
     # save result
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext), simplex)
     # return shape to initial shape
