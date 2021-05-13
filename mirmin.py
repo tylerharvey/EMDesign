@@ -1,14 +1,23 @@
+'''
+Run as 
+$ mirmin.py input_file [log_file]
+if log_file is omitted, output is sent to STDOUT
+'''
 import numpy as np
 import matplotlib.pyplot as plt
 from optical_element_io import *
 from column_io import OpticalColumn
 from calculate_optical_properties import calc_properties_mirror
-from automation import optimize_image_plane, optimize_many_shapes
-from importlib import reload
+from automation import optimize_many_shapes
+from misc_library import choose_logger
 import sys
 
-
 input_file = open(sys.argv[1],'r')
+if(len(sys.argv) > 2):
+    choose_logger(sys.argv[2])
+else:
+    choose_logger(None)
+
 lines = input_file.readlines()
 lines = [line.rstrip().split(': ')[1] for line in lines if len(line.split(': '))==2] # remove carriage return and variable text
 seed_file = lines[0]
@@ -28,7 +37,7 @@ simplex_scale=float(lines[12])
 source_pos=float(lines[13])
 img_pos=float(lines[14])
 energy=float(lines[15])
-mir = ElecLens(seed_file,verbose=True)
+mir = ElecLens(seed_file)
 mir.mirror_type(mirror=True,curved_mirror=curved)
 mir.write(new_filename)
 col = OpticalColumn(mir)
@@ -42,5 +51,3 @@ col.read_mir_optical_properties(raytrace=True)
 
 initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filename)
 optimize_many_shapes(mir,col,mir.dielectric_z_indices+mir.electrode_z_indices,mir.dielectric_r_indices+mir.electrode_r_indices,z_curv_z_indices_list=None,z_curv_r_indices_list=None,end_z_indices_list=end_z_indices_list,end_r_indices_list=end_r_indices_list,automate_present_curvature=automate_curvature,z_min=z_min,z_max=z_max,r_min=r_min,r_max=None,simplex_scale=simplex_scale,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':initial_simplex,'return_all':True}) # ,'maxfev':100000 #,method='Nelder-Mead',manual_bounds=True,options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None})
-
-print(col.c3)

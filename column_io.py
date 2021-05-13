@@ -1,11 +1,10 @@
-import sys, os, subprocess, shutil, datetime
+import os, subprocess 
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
-from contextlib import contextmanager
-from optical_element_io import cd, check_len 
 from scipy.interpolate import interp1d
+from misc_library import Logger, cd, check_len
 
 class OpticalColumn:
     '''
@@ -70,6 +69,8 @@ class OpticalColumn:
                 passed to self.oe for usage of oe methods and attributes.
         '''
 
+        self.Mlog = Logger('MEBS')
+        self.olog = Logger('output')
         if(oe == None and oe_list == None):
             self.obj = obj
             self.mir = mir
@@ -83,19 +84,16 @@ class OpticalColumn:
                 self.oe_list.append(mir)
             self.oe = tl_list[0]
             self.dirname = self.oe.dirname
-            self.verbose = self.oe.verbose
             self.single = False
         elif(oe_list):
             self.oe_list = oe_list
             self.oe = tl_list[0]
             self.dirname = self.oe.dirname
-            self.verbose = self.oe.verbose
             self.single = False
         else:
             self.dirname = oe.dirname
             self.oe_list = [oe] 
             self.oe = oe 
-            self.verbose = oe.verbose
             self.single = True
         self.img_source_offset = 0.0001
 
@@ -107,10 +105,10 @@ class OpticalColumn:
         '''
         with cd(self.dirname):
             try:
-                print(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
+                self.Mlog.log.info(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
-                print('Ray tracing timed out. Rerunnning.')
+                self.olog.log.info('Ray tracing timed out. Rerunnning.')
                 self.calc_rays()
 
     def load_rays(self):

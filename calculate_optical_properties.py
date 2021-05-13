@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-import sys,os,subprocess,shutil,datetime
+import os, subprocess
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
-from string import Template
-from contextlib import contextmanager
-from optical_element_io import cd
+from misc_library import Logger, cd
 import asyncio
 import nest_asyncio
 nest_asyncio.apply()
 
-async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=None,verbose=True):
+async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=None):
     '''
     Function for handling simple subprocess executions.
 
@@ -27,32 +25,34 @@ async def run_async(command_and_args,i=0,max_attempts=3,timeout=1000,user_input=
             the called program. Default None.
     '''
 
-    outputmode = asyncio.subprocess.PIPE if verbose else None
+    outputmode = asyncio.subprocess.PIPE 
     proc = await asyncio.create_subprocess_exec(*command_and_args,
                                     stdout=outputmode,
                                     stderr=asyncio.subprocess.PIPE,
                                     stdin=asyncio.subprocess.PIPE)
 
+    Mlog = Logger('MEBS')
     if(user_input):
         stdin = user_input.encode()
         stdout,stderr = await asyncio.wait_for(proc.communicate(stdin),timeout=timeout)
         if(stdout):
-            print(f'{stdout.decode()}')
+            Mlog.log.info(f'{stdout.decode()}')
 
 
     try:
         stdout,stderr = await asyncio.wait_for(proc.communicate(),timeout=timeout)
         if(stdout):
-            print(f'{stdout.decode()}')
+            Mlog.log.info(f'{stdout.decode()}')
         # MEBS doesn't generally use STDERR
     except asyncio.TimeoutError:
         i+=1
         proc.kill()
+        olog = Logger('output')
         if(i > max_attempts):
-            print('Maximum attempts reached.')
+            olog.log.info('Maximum attempts reached.')
             raise asyncio.TimeoutError
         else:
-            print(f'Program {command_and_args[0]} timed out. Rerunning.')
+            olog.log.info(f'Program {command_and_args[0]} timed out. Rerunning.')
             try: 
                 await run_async(command_and_args,i+1,timeout=timeout,user_input=user_input)
             except asyncio.TimeoutError:
@@ -68,9 +68,9 @@ async def run_herm_then_mirror(oe,col,nterms):
         
     try:
         await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
-                                                         user_input=user_input,verbose=oe.verbose)
+                                                         user_input=user_input)
 
-        await run_async(['MIRROR.exe',col.mircondbasename_noext],timeout=col.timeout,verbose=oe.verbose)
+        await run_async(['MIRROR.exe',col.mircondbasename_noext],timeout=col.timeout)
     except asyncio.TimeoutError:
         raise asyncio.TimeoutError
 
@@ -84,12 +84,12 @@ async def run_herm_then_mirror_multi(col,nterms):
             
         try:
             await run_async(['herm1.exe',oe.potname,oe.fitname,str(nterms),symstring],timeout=oe.timeout,
-                                                                user_input=user_input,verbose=oe.verbose)
+                                                                user_input=user_input)
         except asyncio.TimeoutError:
             raise asyncio.TimeoutError
 
     try:
-        await run_async(['MIRROR.exe',col.mircondbasename_noext],timeout=col.timeout,verbose=oe.verbose)
+        await run_async(['MIRROR.exe',col.mircondbasename_noext],timeout=col.timeout)
     except asyncio.TimeoutError:
         raise asyncio.TimeoutError
 
@@ -155,22 +155,25 @@ def calc_properties_optics(col,i=0,max_attempts=3):
         col : OpticalColumn object 
             optical column for which to calculate optical properties.
     '''
+    olog = Logger('output')
+    Mlog = Logger('MEBS')
     with cd(col.dirname):
-        outputmode = subprocess.PIPE if col.verbose else None
+        outputmode = subprocess.PIPE 
         if(os.path.exists(col.imgcondfilename) != True):
-            print('No optical imaging conditions file found. Run OpticalElement.write_opt_img_cond_file() first.')
+            olog.log.info('No optical imaging conditions file found. '
+                           'Run OpticalElement.write_opt_img_cond_file() first.')
             raise FileNotFoundError
         try:
             output = subprocess.run(['OPTICS.exe','ABER',col.imgcondbasename_noext],stdout=outputmode,timeout=col.timeout).stdout
-            print(output.decode('utf-8')) if col.verbose else 0
+            Mlog.log.info(output.decode('utf-8'))
         except TimeoutExpired:
             i+=1
-            print('Optical properties calculation failed. Rerunning.')
+            olog.log.info('Optical properties calculation failed. Rerunning.')
             if(i > max_attempts):
                 raise TimeoutExpired
             else:
                 calc_properties_optics(col,i)
         except AttributeError:
-            print('OpticalElement.imagecondbasename_noext not set. Run '
+            olog.log.info('OpticalElement.imagecondbasename_noext not set. Run '
                   'OpticalElement.write_opt_img_cond_file() first.') 
             raise AttributeError

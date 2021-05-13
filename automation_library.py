@@ -5,12 +5,11 @@ import os
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
-from contextlib import contextmanager
-from optical_element_io import cd, index_array_from_list, np_index
 from calculate_optical_properties import calc_properties_optics, calc_properties_mirror, calc_properties_mirror_multi
 import scipy.stats as st
 import asyncio
 from shapely.geometry import *
+from misc_library import Logger, cd, index_array_from_list, np_index
 
 class TimeoutCheck:
     def __init__(self):
@@ -21,7 +20,8 @@ def change_image_plane_and_check_retracing(img_pos, col, kwargs):
                             screen_pos=img_pos, minimum_rays=True,**kwargs)
     col.calc_rays()
     retracing = col.evaluate_retracing()
-    print(f'Retrace deviation: {retracing}')
+    olog = Logger('output')
+    olog.log.info(f'Retrace deviation: {retracing}')
     return retracing
 
 def change_voltages_and_check_retracing(voltages_and_plane, col, potentials, flag_mask, kwargs):
@@ -31,7 +31,8 @@ def change_voltages_and_check_retracing(voltages_and_plane, col, potentials, fla
                             screen_pos=img_pos, minimum_rays=True,**kwargs)
     col.calc_rays()
     retracing = col.evaluate_retracing()
-    print(f'Retrace deviation: {retracing}')
+    olog = Logger('output')
+    olog.log.info(f'Retrace deviation: {retracing}')
     return retracing
 
 def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potentials, flag_mask,
@@ -49,7 +50,8 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
                             screen_pos=img_pos, minimum_rays=True,**kwargs)
     col.calc_rays()
     retracing = col.evaluate_retracing()
-    print(f'Retrace deviation: {retracing}')
+    olog = Logger('output')
+    olog.log.info(f'Retrace deviation: {retracing}')
     return retracing
 
 def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
@@ -57,8 +59,10 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     lb_nn = (bounds[:,0] != None)
     ub_nn = (bounds[:,1] != None)
     if((bounds[:,0][lb_nn] > col_vars[lb_nn]).any() or (bounds[:,1][ub_nn] < col_vars[ub_nn]).any()):
-        print('Hit bounds')
-        print(bounds,col_vars)
+        ilog = Logger('internal')
+        ilog.log.info('Hit bounds')
+        ilog.log.info(f'{bounds=}')
+        ilog.log.info(f'{col_vars=}')
         return 1000
 
     i = 0
@@ -78,7 +82,8 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     # col.write_mir_img_cond_file(col.mircondfilename,**kwargs)
     # calc_properties_mirror_multi(col)
     # col.read_mir_optical_properties(raytrace=False)
-    print(col.mag)
+    ilog = Logger('internal')
+    ilog.log.info(f'{col.mag=}')
     return 1/np.abs(col.mag)
 
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
@@ -143,11 +148,15 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
             col.read_mir_optical_properties(raytrace=False)
     except UnboundLocalError: # if optics fails, return garbage
         return 100
-    print(f"f: {col.f}, C3: {col.c3}")
+    olog = Logger('output')
+    olog.log.info(f"f: {col.f}, C3: {col.c3}")
     if(curr_bound): # only works on single lens
         coil_area = 0
         for i in range(len(oe.coil_z_indices)):
             coil_area += oe.determine_quad_area(oe.coil_z_indices[i], oe.coil_r_indices[i])
+        ilog = Logger('internal')
+        ilog.log.info(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
+        # print(f'lens_curr: {oe.lens_curr}; coil_area: {coil_area}; density: {oe.lens_curr/coil_area}; bound: {curr_bound}')
         if(oe.lens_curr/coil_area > curr_bound):
             return 100
     return np.abs(col.c3)
@@ -289,6 +298,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
     N_s = len(initial_shape)
     simplex = np.zeros((N+1,N),dtype=float)
     n_snc = len(initial_shape[:-n_curve_points]) if(n_curve_points) else N_s # snc is short for 'shape, no curves'
+    ilog = Logger('internal')
     if(adaptive):
         shape_copy = np.copy(initial_shape)
         tfn = TwoFacedNormal() # two-sided gaussian distribution
@@ -313,7 +323,8 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
             if(right[i] == 0):
                 right[i] = scale/8
             shape_copy[i] = initial_shape[i]
-        print('Adaptive search complete')
+        olog = Logger('output')
+        olog.log.info('Adaptive search complete')
         initial_shape_no_curves = initial_shape[:n_snc]
         initial_curve_shape = initial_shape[n_snc:]
         for i in range(N+1):
@@ -328,8 +339,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
                                                           sigma_l=np.abs(left)/adj, sigma_r=np.abs(right)/adj),
                                                   rng.normal(initial_curve_shape, curve_scale)])
                 adj *= 1.01
-            if(oe.verbose):
-                print(f'Simplex {i+1} of {N+1} complete.')
+            ilog.log.info(f'Simplex {i+1} of {N+1} complete.')
     else:
         scale_array = np.concatenate([np.full((n_snc),scale,dtype=float), 
                                       np.full((n_curve_points),curve_scale,dtype=float)]) if n_curve_points else scale
@@ -340,8 +350,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
             while(change_n_quads_and_check(simplex[i,:N_s], oe, shape_data, enforce_bounds,
                                            bounds, breakdown_field)):
                 simplex[i,:N_s] = rng.normal(initial_shape, scale_array)
-            if(oe.verbose):
-                print(f'Simplex {i+1} of {N+1} complete.')
+            ilog.log.info(f'Simplex {i+1} of {N+1} complete.')
     # save result
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext), simplex)
     # return shape to initial shape

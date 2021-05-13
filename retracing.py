@@ -1,11 +1,21 @@
+'''
+Run as 
+$ retracing.py input_file [log_file]
+if log_file is omitted, output is sent to STDOUT
+'''
 import numpy as np
 import matplotlib.pyplot as plt
 from optical_element_io import *
 from column_io import OpticalColumn
 from automation import optimize_planes_for_retracing, optimize_voltages_for_retracing, optimize_broadly_for_retracing
-from importlib import reload
+from misc_library import choose_logger
 
 input_file = open(sys.argv[1],'r')
+if(len(sys.argv) > 2):
+    choose_logger(sys.argv[2])
+else:
+    choose_logger(None)
+
 lines = input_file.readlines()
 print(lines)
 # remove carriage return and variable text
@@ -27,7 +37,7 @@ img_pos=float(lines[11])
 energy=float(lines[12])
 maxfev=float(lines[13])
 
-mir = ElecLens(seed_file,verbose=True)
+mir = ElecLens(seed_file)
 mir.mirror_type(mirror=True,curved_mirror=curved)
 mir.write(new_filename)
 col = OpticalColumn(mir)
@@ -44,7 +54,5 @@ initial_simplex = None if simplex_filename == 'None' else np.load(simplex_filena
 
 
 optimize_broadly_for_retracing(mir,col,potentials=MirPotentials(mir,voltages,flags),img_pos=img_pos,end_z_indices_list=end_z_indices_list,end_r_indices_list=end_r_indices_list,z_curv_z_indices_list=z_curv_z_indices_list,z_curv_r_indices_list=z_curv_r_indices_list,simplex_scale=simplex_scale,voltage_logscale=voltage_logscale,options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True,'maxfev':maxfev,'initial_simplex':initial_simplex},energy=energy)
-
-
 
 

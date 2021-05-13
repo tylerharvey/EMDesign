@@ -7,10 +7,8 @@ User methods:
 '''
 import numpy as np
 import matplotlib.pyplot as plt
-from contextlib import contextmanager
 from scipy.optimize import minimize, minimize_scalar
 from calculate_optical_properties import calc_properties_optics
-# from shapely.geometry import *
 from automation_library import calculate_c3, \
                                change_image_plane_and_check_retracing, \
                                change_voltages_and_shape_and_check_retracing, \
@@ -22,12 +20,14 @@ from automation_library import calculate_c3, \
                                prepare_shapes, \
                                change_n_quads_and_check, \
                                TimeoutCheck
+from misc_library import Logger
 
 def optimize_planes_for_retracing(col, bounds=(0,200), img_pos=90, **kwargs):
     result = minimize_scalar(change_image_plane_and_check_retracing, args=(col, kwargs),  
                              method='bounded', bounds=bounds)
 
-    print(f"Retracing image plane: {result.x}mm.")
+    olog = Logger('output')
+    olog.log.info(f"Retracing image plane: {result.x}mm.")
     img_pos = result.x
 
     col.write_mir_img_cond_file(col.mircondfilename, source_pos=img_pos-col.img_source_offset, 
@@ -157,7 +157,8 @@ def optimize_broadly_for_retracing(
     result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
                       args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, kwargs),
                       method='Nelder-Mead', options=options_mutable)
-    print(result)
+    ilog = Logger('internal')
+    ilog.logger.info(f'Optimize {result=}')
 
     if(options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
@@ -183,7 +184,8 @@ def optimize_voltages_for_retracing(col, potentials, img_pos, options=None, **kw
     result = minimize(change_voltages_and_check_retracing, initial_parameters,
                       args=(col, potentials, flag_mask, kwargs),
                       method='Nelder-Mead', options=options)
-    print(result)
+    ilog = Logger('internal')
+    ilog.logger.info(f'Optimize {result=}')
     potentials.voltages[flag_mask] = result.x[:-1]
     img_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
@@ -243,11 +245,12 @@ def optimize_column_for_mag(col,img_pos=50,options=None, lens_pos_min=0, lens_po
     col.write_opt_img_cond_file(col.imgcondfilename, img_pos=img_pos, **kwargs)
     calc_properties_optics(col)
     col.read_optical_properties()
-    print(f'Initial_magnification: {col.mag}')
+    olog = Logger('output')
+    olog.log.info(f'Initial_magnification: {col.mag}')
 
     result = minimize(change_column_and_calculate_mag, col_vars, 
                       args=(col,np.array(bounds),kwargs), method='Nelder-Mead', options=options)
-    print(f'Resulting magnification: {1/change_column_and_calculate_mag(result.x,col,np.array(bounds),kwargs)}')
+    olog.log.info(f'Resulting magnification: {1/change_column_and_calculate_mag(result.x,col,np.array(bounds),kwargs)}')
     col.write_opt_img_cond_file(col.imgcondfilename, img_pos=result.x[-1], **kwargs)
     # col.write_mir_img_cond_file(col.mircondfilename, **kwargs)
     # col.write_raytrace_file(col.mircondfilename, **kwargs)
@@ -352,12 +355,14 @@ def optimize_many_shapes(
             breakdown_field=breakdown_field)):
         raise ValueError('Initial shape intersects or violates bounds.')
     oe.automated = True
+    olog = Logger('output')
+    ilog = Logger('internal')
     if(method=='Nelder-Mead' and options.get('initial_simplex') is None):
-        print('Generating initial simplex.')
+        olog.log.info('Generating initial simplex.')
         options_mutable['initial_simplex'] = generate_initial_simplex(
             initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), 
             breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, adaptive=adaptive_simplex)
-        print('Finished initial simplex generation.')
+        olog.log.info('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
             result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
@@ -370,8 +375,8 @@ def optimize_many_shapes(
                           args=(oe, col, shape_data, TimeoutCheck()),
                           bounds=bounds, method=method, options=options_mutable)
 
-    print('Optimization complete with success flag {}'.format(result.success))
-    print(result.message)
+    olog.log.info('Optimization complete with success flag {}'.format(result.success))
+    ilog.log.info(result.message)
     change_n_quads_and_calculate(result.x, oe, col, shape_data)
     if(col.program == 'mirror'):
         col.raytrace_from_saved_values()

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-import sys,os,subprocess,shutil,datetime
+import os, subprocess, shutil
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
-from contextlib import contextmanager
 from scipy.interpolate import interp2d
 from shapely.geometry import *
+from misc_library import Logger, \
+                         cd, index_array_from_list, np_index, last_np_index, \
+                         check_len, check_len_multi 
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -24,65 +26,6 @@ from shapely.geometry import *
 ### 
 ### the working directory must also be the one in which the MEBS .dat and .axb
 ### files are located, so os.chdir is used after read-in satisfy this.
-
-# safe chdir, found on stackexchange; do not understand it but
-# when used as "with cd():" it returns to the previous directory
-# no matter what
-@contextmanager
-def cd(newdir):
-    prevdir = os.getcwd()
-    os.chdir(os.path.expanduser(newdir))
-    try:
-        yield
-    finally:
-        os.chdir(prevdir)
-
-# indices is an ordered numpy array of MEBS indices
-# like oe.r_indices
-# index is a MEBS index
-def np_index(indices, index):
-    ''' 
-    Returns numpy index from a MEBS index based on an ordered list of indices.
-
-    Parameters:
-        indices : array
-            ordered list of MEBS indices, e.g. oe.r_indices
-        index : int
-            MEBS index.
-    '''
-    return len(indices[indices < index])
-
-# indices is an ordered numpy array of MEBS indices
-# like oe.r_indices
-# index is a MEBS index
-def last_np_index(indices, index):
-    l = indices[indices <= index]
-    return len(l)-1 # if len(l) > 0 else 0 ## shouldn't be necessary now
-
-# takes a list of np indices np_list = [(1,0),(2,5),...]
-# and casts to a format that can be used for numpy indexing
-# i.e. array[index_array_from_list(index_list)]
-def index_array_from_list(index_list):
-    if(len(index_list) == 0 or not any(index_list)): #index_list == ([],[])):
-        return [],[]
-    tmp_array = np.array(index_list)
-    return (tmp_array[:,0],tmp_array[:,1])
-
-def check_len(string, colwidth):
-    if(len(string.strip()) >= colwidth):
-        raise ValueError(f'Error: zero space between columns. Value: {string} with length {len(string)}, while column width is {self.colwidth}. Increase column width and rerun.')
-    else:
-        return string
-
-# this is not intuitive, and best illustrated with an example: 
-# if you have two numerical strings of length 10 and colwidth is 10,
-# string.split() does not split, so item will be length 20
-# the check works, but not for the reason you might think
-def check_len_multi(string, colwidth):
-    for item in string.split():
-        if(len(item) >= colwidth):
-          raise ValueError('Error: zero space between columns. Increase column width and rerun.')
-    return string
 
 class MEBSSegment:
     
@@ -223,11 +166,10 @@ class OpticalElement:
     excitation_flag = None
     
 
-    # verbose plots everything
     # so reads .dat files for the second-order solver
     # these are almost exactly the same except they have radii of curvature
     # sections after the mesh that looks like the mesh blocks
-    def __init__(self, filename='', verbose=False, so=False, plot=False):
+    def __init__(self, filename='', so=False, plot=False):
         '''
         Initialize an instance of an optical element.
 
@@ -236,9 +178,6 @@ class OpticalElement:
                 full filename pointing to the optical element .dat file.
 
         Optional flags:
-            verbose : boolean
-                captures as much output as possible and plots often.
-                default False
             so : boolean
                 denotes whether the optical element .dat file includes 
                 curvature coordinates for compatibility with MEBS SOFEM.
@@ -250,6 +189,8 @@ class OpticalElement:
                 default False for non-blocking operation.
         '''
 
+        self.Mlog = Logger('MEBS')
+        self.olog = Logger('output')
         self.so=so
         self.mirror = False
         self.curved_mirror = False
@@ -257,7 +198,6 @@ class OpticalElement:
         self.freeze_radial_boundary = False
         self.infile = []
         self.initialize_lists()
-        self.verbose = verbose
         self.plot = plot
         self.automated = False # will be turned on when automation starts
         if(filename):
@@ -277,7 +217,7 @@ class OpticalElement:
         self.dirname = os.path.dirname(filename)
         self.infile = list(f) # creates a list with one entry per line of f
         self.read_intro()
-        print(f"Reading file {filename} \nwith title: {self.title}")
+        self.olog.log.info(f"Reading file {filename} \nwith title: {self.title}")
         line_num = self.read_mesh()
         if(self.so):
             line_num = self.read_curvature(line_num)
@@ -321,7 +261,7 @@ class OpticalElement:
                 (len(self.z_indices) != 5 and len(np.fromstring(self.infile[line_num],dtype=int,sep=' ')) != 5) or 
                 (len(self.z_indices) == 5 and 
                     np.array_equal(np.fromstring(self.infile[line_num],dtype=int,sep=' '),self.z_indices))):
-            print('Warning! This data file seems to have curvature coordinates. Setting so=True.')
+            self.olog.log.info('Warning! This data file seems to have curvature coordinates. Setting so=True.')
             self.so = True
         return line_num # save line number of the start of the next block
     
@@ -709,7 +649,7 @@ class OpticalElement:
                 plt.ylabel('B (T)')
                 plt.show()
         except OSError:
-            print('No file with name {} found. Run calc_field first.'.format(self.potname))
+            self.olog.log.info('No file with name {} found. Run calc_field first.'.format(self.potname))
             raise FileNotFoundError
 
     def add_curvature(self):
@@ -878,13 +818,13 @@ class StrongMagLens(OpticalElement):
         No arguments.
         '''
         with cd(self.dirname):
-            outputmode = subprocess.PIPE if self.verbose else None
+            outputmode = subprocess.PIPE 
             try:
                 output = subprocess.run(["somlenss.exe",self.basename_noext], stdout=outputmode, 
                                         timeout=self.timeout).stdout
-                print(output.decode('utf-8')) if self.verbose else None
+                self.Mlog.log.info(output.decode('utf-8')) 
             except TimeoutExpired:
-                print('Field calculation timed out. Rerunning.')
+                self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
 
 
@@ -932,10 +872,10 @@ class WeakMagLens(StrongMagLens):
         '''
         with cd(self.dirname):
             try:
-                print(subprocess.run(["somlensc.exe",self.basename_noext], stdout=subprocess.PIPE, 
+                self.Mlog.log.info(subprocess.run(["somlensc.exe",self.basename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
-                print('Field calculation timed out. Rerunning.')
+                self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
 
 
@@ -1031,10 +971,10 @@ class WeakMagLens_PP_Region(WeakMagLens):
         '''
         with cd(self.dirname):
             try:
-                print(subprocess.run(["somlensp.exe",self.basename_noext], stdout=subprocess.PIPE, 
+                self.Mlog.log.info(subprocess.run(["somlensp.exe",self.basename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
-                print('Field calculation timed out. Rerunning.')
+                self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
 
 class ElecLens(OpticalElement):
@@ -1179,13 +1119,13 @@ class ElecLens(OpticalElement):
         No arguments.
         '''
         with cd(self.dirname):
-            outputmode = subprocess.PIPE if self.verbose else None
+            outputmode = subprocess.PIPE 
             try:
                 output = subprocess.run(["soelens.exe",self.basename_noext], stdout=outputmode, 
                                         timeout=self.timeout).stdout
-                print(output.decode('utf-8')) if self.verbose else None
+                self.Mlog.log.info(output.decode('utf-8')) 
             except TimeoutExpired:
-                print('Field calculation timed out. Rerunning.')
+                self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
 
 
