@@ -107,7 +107,7 @@ def choose_logger(logfile=None):
         outputlogfile = None
         internallogfile = None
 
-    MEBS = setup_logger('MEBS',MEBSlogfile)
+    MEBS = setup_logger('MEBS',MEBSlogfile,level=logging.DEBUG)
     output = setup_logger('output',outputlogfile)
     internal = setup_logger('internal',internallogfile,level=logging.DEBUG)
 
