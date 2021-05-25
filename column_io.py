@@ -31,6 +31,8 @@ class OpticalColumn:
             (set by read_mir_optical...).
 
     User methods:
+        use_opt_img_cond_file
+        use_mir_img_cond_file
         write_raytrace_file
         write_opt_img_cond_file
         write_mir_img_cond_file
@@ -71,6 +73,7 @@ class OpticalColumn:
 
         self.Mlog = Logger('MEBS')
         self.olog = Logger('output')
+        self.ilog = Logger('internal')
         if(oe == None and oe_list == None):
             self.obj = obj
             self.mir = mir
@@ -401,6 +404,39 @@ class OpticalColumn:
         cf.close()
         cf = None
 
+
+    def use_mir_img_cond_file(self, mircondfilename):
+        '''
+        Uses existing optical imaging conditions file for MIRROR.
+        
+        Settings are not saved in memory, so raytrace_from_saved_values() 
+        cannot be run after running this function.
+
+        Parameters:
+            mircondfilename : path
+                full filename for imaging conditions file.
+        '''
+        self.program = 'mirror'
+        for oe in self.oe_list:
+            oe.program = 'mirror'
+        self.mircondfilename = mircondfilename
+        self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
+
+    def use_opt_img_cond_file(self, imgcondfilename):
+        '''
+        Uses existing optical imaging conditions file for OPTICS.
+
+        Not tested yet.
+        
+        Parameters:
+            mircondfilename : path
+                full filename for imaging conditions file.
+        '''
+        self.program = 'optics'
+        for oe in self.oe_list:
+            oe.program = 'optics'
+        self.imgcondfilename = imgcondfilename
+        self.imgcondbasename_noext = os.path.splitext(os.path.basename(imgcondfilename))[0] 
 
     def write_mir_img_cond_file(self, mircondfilename, source_pos=90, source_shape='ROUND', source_size=200, 
                                 intensity_dist='UNIFORM', ang_shape='ROUND', semiangle=10, ang_dist='UNIFORM', 
@@ -774,7 +810,15 @@ class OpticalColumn:
 
         No arguments.
         '''
-        pf = open(os.path.join(self.dirname,self.imgcondbasename_noext+'.res'),'r')
+        try:
+            pf = open(os.path.join(self.dirname,self.imgcondbasename_noext+'.res'),'r')
+        except FileNotFoundError:
+            self.olog.log.critical('No .res file found. This is likely because '
+                    'the optical element and column files are in different directories.')
+            self.olog.log.critical(f'{self.imgcondfilename=}')
+            for oe in self.oe_list:
+                self.olog.log.critical(f'{self.oe.filename=}')
+            raise FileNotFoundError
         properties_lines = pf.readlines()
         # see end of this file for snippets of the .res file 
         # that are relevant to this parameter extraction
@@ -804,8 +848,8 @@ class OpticalColumn:
                 self.lens_curr.append(float(properties_lines[linenum_curr[j]].split()[7]))
                 oe.lens_curr = self.lens_curr[-1]
         else:
-           self.lens_curr = float(properties_lines[linenum_curr].split()[7])
-           self.oe.lens_curr = self.lens_curr
+            self.lens_curr = float(properties_lines[linenum_curr].split()[7])
+            self.oe.lens_curr = self.lens_curr
         ## I didn't need to implement this yet
         # self.lens_curr = []
         # i = 0
@@ -833,7 +877,15 @@ class OpticalColumn:
                 Determines whether raytrace file with same parameters is 
                 automatically written and calc_rays() is run.
         '''
-        pf = open(os.path.join(self.dirname, self.mircondbasename_noext+'.res'),'r')
+        try:
+            pf = open(os.path.join(self.dirname, self.mircondbasename_noext+'.res'),'r')
+        except FileNotFoundError:
+            self.olog.log.critical('No .res file found. This is likely because '
+                    'the optical element and column files are in different directories.')
+            self.olog.log.critical(f'{self.mircondfilename=}')
+            for oe in self.oe_list:
+                self.olog.log.critical(f'{self.oe.filename=}')
+            raise FileNotFoundError
         properties_lines = pf.readlines()
         # see end of this file for snippets of the .res file 
         # that are relevant to this parameter extraction
@@ -858,7 +910,8 @@ class OpticalColumn:
         while('Potential V' in properties_lines[linenum_v+j]):
             self.V.append(float(properties_lines[linenum_v+j].split()[3]))
             j+=1
-        self.potentials.voltages = self.V # update saved voltages
+        if(hasattr(self,'potentials')):
+            self.potentials.voltages = self.V # update saved voltages
         self.oe.V = self.V # save to optical element
         self.f = None
         self.f_real = None
