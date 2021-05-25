@@ -118,6 +118,15 @@ def change_n_quads_and_calculate(shape, oe, col, shape_data, t=TimeoutCheck(), e
         return 10000
     return calculate_c3(oe, col, curr_bound, t)
 
+def change_n_quads_and_calculate_curr(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, 
+                                      bounds=None, curr_bound=None, breakdown_field=None):
+    if(t.timed_out):
+        return 10000
+    if(change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=enforce_bounds, bounds=bounds, 
+                                breakdown_field=breakdown_field)):
+        return 10000
+    return calculate_curr(oe, col, curr_bound, t)
+
 def calculate_c3(oe, col, curr_bound=None, t=None):
     '''
     Workhorse function for automation. Writes optical element file, then 
@@ -160,6 +169,48 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
         if(oe.lens_curr/coil_area > curr_bound):
             return 100
     return np.abs(col.c3)
+
+def calculate_curr(oe, col, curr_bound=None, t=None):
+    '''
+    Calculates current used in a magnetic lens. 
+
+    Writes optical element file, then 
+    calculates field, then calculates optical properties, and reads current
+    used in lens.
+
+    Parameters:
+        oe : OpticalElement object
+            optical element on which to calculate spherical aberration.
+    '''
+    
+    oe.write(oe.filename)
+    if(col.program == 'optics'):
+        try:
+            calc_properties_optics(col)
+        except TimeoutExpired: # if optics has failed over and over again, bail
+            t.timed_out = True
+            return 10000 # likely dongle error
+    if(col.program == 'mirror'):
+        try:
+            calc_properties_mirror(oe, col)
+        except asyncio.TimeoutError:
+            return 10000 # likely reached a shape where the image plane is too far for MIRROR
+    try: 
+        if(col.program == 'optics'):
+            col.read_optical_properties()
+        if(col.program == 'mirror'):
+            col.read_mir_optical_properties(raytrace=False)
+    except UnboundLocalError: # if optics fails, return garbage
+        return 100
+    olog = Logger('output')
+    olog.log.info(f"f: {col.f}, C3: {col.c3}")
+
+    coil_area = 0
+    for i in range(len(oe.coil_z_indices)):
+        coil_area += oe.determine_quad_area(oe.coil_z_indices[i], oe.coil_r_indices[i])
+    ilog = Logger('internal')
+    ilog.log.debug(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
+    return oe.lens_curr/coil_area 
 
 def determine_img_pos_limits(oe):
     quad_z_coords = oe.z[oe.retrieve_edge_points(oe.electrode_z_indices, oe.electrode_r_indices, True)]
@@ -474,9 +525,9 @@ class Quad:
         self.edge_points_list = oe.retrieve_single_quad_edge_points(z_indices, r_indices)
         self.original_edge_points_list = self.edge_points_list.copy()
         self.mirrored_edge_points_list, self.edge_points_list = find_mirrored_edge_points(oe, self.edge_points_list) \
-                                                                if separate_mirrored else [],self.edge_points_list
+                                                                if separate_mirrored else ([],self.edge_points_list)
         self.Rboundary_edge_points_list, self.edge_points_list = find_Rboundary_edge_points(oe, self.edge_points_list) \
-                                                                 if separate_radial_boundary else [],self.edge_points_list
+                                                                 if separate_radial_boundary else ([],self.edge_points_list)
 
     def delete_overlaps(self, edge_points_list, prior_edge_points_list):
         edge_points_list = [point for point in edge_points_list if point not in prior_edge_points_list]
