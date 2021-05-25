@@ -3,8 +3,6 @@ import os, sys
 import logging
 from contextlib import contextmanager
 
-choose_logger()
-
 # indices is an ordered numpy array of MEBS indices
 # like oe.r_indices
 # index is a MEBS index
@@ -75,7 +73,7 @@ def setup_logger(name, logfile=None, level=logging.INFO):
     if(level==logging.DEBUG):
         formatter = logging.Formatter('%(module)s:%(funcName)s:%(lineno)d: %(message)s')
     else:
-        formatter = std_format
+        formatter = bare_format
     handler.setFormatter(formatter)
 
     loud_handler = logging.StreamHandler(sys.stderr) # always send warnings and errors to stderr
@@ -110,6 +108,8 @@ def choose_logger(logfile=None):
     MEBS = setup_logger('MEBS',MEBSlogfile,level=logging.DEBUG)
     output = setup_logger('output',outputlogfile)
     internal = setup_logger('internal',internallogfile,level=logging.DEBUG)
+
+choose_logger()
 
 # def Mlog(text,i=-1):
 #     logger = logging.getLogger('MEBS')
