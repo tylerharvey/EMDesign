@@ -177,7 +177,7 @@ class OpticalColumn:
                return (np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_max)**2).sum()
 
     def plot_rays(self, width=15, height=5, mirror=False, xlim=None, ylim=None, coarse_mesh=True, 
-                  boundary_mesh=False, equal_aspect=True, savefile=''):
+                  boundary_mesh=False, only_radial=True, equal_aspect=True, savefile=''):
         '''
         Run after calc_rays() to plot rays.
 
@@ -186,16 +186,16 @@ class OpticalColumn:
                 Determines whether separate x and y values are plotted, or
                 just r.
             width : float
-                plot width passed to plt.figure(figsize=(width,height)).
+                Plot width passed to plt.figure(figsize=(width,height)).
                 default 15.
             height : float
-                plot width passed to plt.figure(figsize=(width,height)).
+                Plot width passed to plt.figure(figsize=(width,height)).
                 default 5.
             mirror : bool
-                if True, mirrors rays across r=0.
+                If True, mirrors rays across r=0.
                 Default False.
             xlim : list or None
-                list of [xmin,xmax] or None for default limits.
+                List of [xmin,xmax] or None for default limits.
                 Default None.
             ylim : list or None
                 list of [ymin,ymax] or None for default limits.
@@ -204,6 +204,10 @@ class OpticalColumn:
                 If True, add coarse mesh to plot. Default True.
             boundary_mesh : bool
                 If True, add boundary of mesh to plot. Default False.
+            only_radial : bool
+                If True, plot only radial component even if x,y ray
+                information exists.
+                Default True.
             equal_aspect : bool
                 If True, sets aspect ratio to 'equal'. 
                 Default True.
@@ -224,7 +228,7 @@ class OpticalColumn:
             
         colors = ['b','g','c']
         for i in range(n_rays):
-            if(cyl_symm):
+            if(cyl_symm or only_radial):
                 if(mirror):
                     plt.plot(zs[i], -rs[i], color=colors[i%3])
                 plt.plot(zs[i], rs[i], color=colors[i%3])
@@ -232,7 +236,7 @@ class OpticalColumn:
                 plt.plot(zs[i], xs[i], color=colors[i%3], label='x component of ray')
                 plt.plot(zs[i], ys[i], color=colors[i%3], linestyle=':', label='y component of ray')
         plt.xlabel('z (mm)')
-        if(cyl_symm):
+        if(cyl_symm or only_radial):
             plt.ylabel('r (mm)') 
         else:
             plt.ylabel('x and y (mm)')
