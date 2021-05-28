@@ -129,6 +129,7 @@ class OpticalColumn:
         else:
             xs = np.split(x, split_indices)
             ys = np.split(y, split_indices)
+            r_max = max([np.max(y**2+x**2) for x,y in zip(xs,ys)])
         return zs, rs, xs, ys, n_rays, r_max, cyl_symm
 
     def evaluate_retracing(self):
@@ -370,7 +371,7 @@ class OpticalColumn:
                          self.imgcondtext_fmt.format(potentials.format_noflag())+"\n")
             elif(lens_excitation is not None):
                 cf.write(self.imgcondsubprop_fmt.format("Excitation")+
-                         self.imgcondtext_fmt.format(lens_excitation)+"\n")
+                         self.mircondfloat_fmt.format(lens_excitation)+"\n")
             else:
                 raise ValueError('No potentials or lens excitation defined!')
 
@@ -425,7 +426,7 @@ class OpticalColumn:
             cf.write('\nElectrostatic Equipotentials\n')
             for pot in pot_range:
                 cf.write(rayfloat_fmt.format(pot)+'\n')
-        elif(hasattr(self.mir,potentials)):
+        elif(hasattr(self,'mir') and hasattr(self.mir,'potentials')):
             pot_min = min(self.mir.potentials.voltages)
             pot_max = max(self.mir.potentials.voltages)
             pot_range = np.linspace(pot_min, pot_max, n_equipotentials, endpoint=True)
