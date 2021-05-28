@@ -452,6 +452,9 @@ class OpticalElement:
     def add_coarse_mesh_to_plot(self):
         self.add_mesh_segments_to_plot(self.define_coarse_mesh_segments())
 
+    def add_boundary_mesh_to_plot(self):
+        self.add_mesh_segments_to_plot(self.define_boundary_mesh_segments())
+
     def add_mesh_segments_to_plot(self, segments, linewidth=1):
         for segment in segments:
             if(segment):
@@ -552,6 +555,24 @@ class OpticalElement:
                                                   self.r_curv[i,j])
         self.coarse_segments = segments
         return segments.flatten()
+
+    def define_boundary_mesh_segments(self):
+        segments = []
+        for i in range(self.z.shape[0]-1):
+            j = 0 
+            segments.append(MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i+1,j], self.r[i+1,j]), 
+                                                  self.z_curv[i,j]))
+            j = self.z.shape[1]-1
+            segments.append(MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i+1,j], self.r[i+1,j]), 
+                                                  self.z_curv[i,j]))
+        for j in range(self.z.shape[1]-1):
+            i = 0
+            segments.append(MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i,j+1], self.r[i,j+1]), 
+                                                  self.r_curv[i,j]))
+            i = self.z.shape[0]-1
+            segments.append(MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i,j+1], self.r[i,j+1]), 
+                                                  self.r_curv[i,j]))
+        return segments
 
     def define_fine_mesh_segments(self):
         '''
@@ -1106,6 +1127,10 @@ class ElecLens(OpticalElement):
         N = len(self.electrode_r_indices)
         for n in range(N):
             self.plot_quad(self.electrode_z_indices[n], self.electrode_r_indices[n], color='k')
+        # plot edge electrode
+        edge_z_indices = np.array([1,1])
+        edge_r_indices = self.r_indices[::self.r_indices.shape[0]-1]
+        self.plot_quad(edge_z_indices,edge_r_indices,color='k')
             
     def plot_dielectrics(self):
         L = len(self.dielectric_r_indices)

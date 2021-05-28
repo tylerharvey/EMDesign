@@ -175,7 +175,8 @@ class OpticalColumn:
                validity = (z_out > np.min(z_back))*(z_out < np.max(z_back))
                return (np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_max)**2).sum()
 
-    def plot_rays(self, width=15, height=5):
+    def plot_rays(self, width=15, height=5, mirror=False, xlim=None, ylim=None, coarse_mesh=True, 
+                  boundary_mesh=False, equal_aspect=True, savefile=''):
         '''
         Run after calc_rays() to plot rays.
 
@@ -189,19 +190,43 @@ class OpticalColumn:
             height : float
                 plot width passed to plt.figure(figsize=(width,height)).
                 default 5.
+            mirror : bool
+                if True, mirrors rays across r=0.
+                Default False.
+            xlim : list or None
+                list of [xmin,xmax] or None for default limits.
+                Default None.
+            ylim : list or None
+                list of [ymin,ymax] or None for default limits.
+                Default None.
+            coarse_mesh : bool
+                If True, add coarse mesh to plot. Default True.
+            boundary_mesh : bool
+                If True, add boundary of mesh to plot. Default False.
+            equal_aspect : bool
+                If True, sets aspect ratio to 'equal'. 
+                Default True.
+            savefile : string
+                Full filepath to save to.
+                Default '' for no saving.
         '''
         zs, rs, xs, ys, n_rays, _, cyl_symm = self.load_rays()
 
         plt.figure(figsize=(width, height))
 
         for oe in self.oe_list:
-            oe.add_coarse_mesh_to_plot() 
+            if(coarse_mesh):
+                oe.add_coarse_mesh_to_plot() 
+            if(boundary_mesh):
+                oe.add_boundary_mesh_to_plot()
             oe.add_quads_to_plot() 
             
         colors = ['b','g','c']
         for i in range(n_rays):
             if(cyl_symm):
-                plt.plot(zs[i], rs[i])
+                if(mirror):
+                    plt.plot(zs[i], -rs[i], color=colors[i%3])
+                plt.plot(zs[i], rs[i], color=colors[i%3])
             else:
                 plt.plot(zs[i], xs[i], color=colors[i%3], label='x component of ray')
                 plt.plot(zs[i], ys[i], color=colors[i%3], linestyle=':', label='y component of ray')
@@ -212,7 +237,14 @@ class OpticalColumn:
             plt.ylabel('x and y (mm)')
             plt.legend()
         plt.title('Rays')
-        plt.gca().set_aspect('equal')
+        if(xlim is not None):
+            plt.xlim(xlim)
+        if(ylim is not None):
+            plt.ylim(ylim)
+        if(equal_aspect):
+            plt.gca().set_aspect('equal')
+        if(savefile):
+            plt.savefig(savefile,dpi=600,bbox_inches='tight')
         plt.show()
 
     def raytrace_from_saved_values(self):
