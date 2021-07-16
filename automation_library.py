@@ -88,14 +88,17 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
 
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
 
+    ilog = Logger('internal')
+    # load shapes
     oe.z[shape_data.edge_points], oe.z[shape_data.Rboundary_edge_points], oe.z[shape_data.end_points], \
         oe.r[shape_data.edge_points], oe.r[shape_data.mirrored_edge_points], inv_z_curv, inv_r_curv \
                                                                 = np.split(shape, shape_data.splitlist)
-    ilog = Logger('internal')
     if(len(inv_z_curv)):
         oe.z_curv[shape_data.z_curv_points] = np.divide(1.0, inv_z_curv, where=(inv_z_curv != 0))
     if(len(inv_r_curv)):
         oe.r_curv[shape_data.r_curv_points] = np.divide(1.0, inv_r_curv, where=(inv_r_curv != 0))
+
+    # check bounds
     if(enforce_bounds):
         lb_nn = (bounds[:,0] != None)
         ub_nn = (bounds[:,1] != None)
