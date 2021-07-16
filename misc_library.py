@@ -65,13 +65,13 @@ def cd(newdir):
 
 
 def setup_logger(name, logfile=None, level=logging.INFO):
-    bare_format = logging.Formatter('%(message)s')
+    bare_format = logging.Formatter('%(asctime)s: %(message)s')
     if(logfile):
         handler = logging.FileHandler(logfile)
     else:
         handler = logging.StreamHandler(sys.stdout)
     if(level==logging.DEBUG):
-        formatter = logging.Formatter('%(module)s:%(funcName)s:%(lineno)d: %(message)s')
+        formatter = logging.Formatter('%(asctime)s:%(module)s:%(funcName)s:%(lineno)d: %(message)s')
     else:
         formatter = bare_format
     handler.setFormatter(formatter)

@@ -91,6 +91,7 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
     oe.z[shape_data.edge_points], oe.z[shape_data.Rboundary_edge_points], oe.z[shape_data.end_points], \
         oe.r[shape_data.edge_points], oe.r[shape_data.mirrored_edge_points], inv_z_curv, inv_r_curv \
                                                                 = np.split(shape, shape_data.splitlist)
+    ilog = Logger('internal')
     if(len(inv_z_curv)):
         oe.z_curv[shape_data.z_curv_points] = np.divide(1.0, inv_z_curv, where=(inv_z_curv != 0))
     if(len(inv_r_curv)):
@@ -99,6 +100,8 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
         lb_nn = (bounds[:,0] != None)
         ub_nn = (bounds[:,1] != None)
         if((bounds[:,0][lb_nn] > shape[lb_nn]).any() or (bounds[:,1][ub_nn] < shape[ub_nn]).any()):
+            ilog.log.debug(f'Bounds: {bounds[:,0][lb_nn]=} > {shape[lb_nn])=} '+
+                           f'or {bounds[:,1][ub_nn]=} < {shape[ub_nn]=}')
             return True
     if(does_coarse_mesh_intersect(oe)):
         return True
@@ -420,15 +423,13 @@ def find_Rboundary_edge_points(oe, edge_points_list):
     return Rboundary_edge_points_list, edge_points_list
 
 def are_electrodes_too_close(oe, breakdown_field, quads, other_quads):
+    ilog = Logger('internal')
     for i,quad in enumerate(quads):
         if(quad.electrode):
-            for other_quad in quads[i+1:]: 
+            for other_quad in quads[i+1:]+other_quads: 
                 if(other_quad.electrode):
                     if(max_field(quad, other_quad, oe) > breakdown_field):
-                        return True
-            for other_quad in other_quads:
-                if(other_quad.electrode):
-                    if(max_field(quad, other_quad, oe) > breakdown_field):
+                        ilog.log.debug(f'{max_field(quad, other_quad, oe)=} > {breakdown_field=}')
                         return True
 
 def max_field(quad, other_quad, oe):
