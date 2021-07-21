@@ -103,13 +103,15 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
         lb_nn = (bounds[:,0] != None)
         ub_nn = (bounds[:,1] != None)
         if((bounds[:,0][lb_nn] > shape[lb_nn]).any() or (bounds[:,1][ub_nn] < shape[ub_nn]).any()):
-            ilog.log.debug(f'Bounds: {bounds[:,0][lb_nn]=} > {shape[lb_nn])=} '+
+            ilog.log.debug(f'Bounds: {bounds[:,0][lb_nn]=} > {shape[lb_nn]=} '+
                            f'or {bounds[:,1][ub_nn]=} < {shape[ub_nn]=}')
             return True
     if(does_coarse_mesh_intersect(oe)):
         return True
     if(does_fine_mesh_intersect_coarse(oe)):
         return True
+    # check happens both after reading optical properties in voltage_and_curr_check and in change_n_quads_and_check
+    # check is fast and both MEBS and automation routines can set voltages
     if(oe.lens_type == 'electrostatic' and breakdown_field and \
             are_electrodes_too_close(oe, breakdown_field, shape_data.quads, shape_data.other_quads)):
         return True
@@ -117,12 +119,23 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
 
 def change_n_quads_and_calculate(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, bounds=None, 
                                  curr_bound=None, breakdown_field=None):
+    ilog = Logger('internal')
     if(t.timed_out):
         return 10000
     if(change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=enforce_bounds, bounds=bounds, 
                                 breakdown_field=breakdown_field)):
         return 10000
-    return calculate_c3(oe, col, curr_bound, t)
+    c3 = calculate_c3(oe, col, curr_bound, t)
+    if(voltage_and_curr_check(oe,curr_bound=curr_bound,breakdown_field=breakdown_field,shape_data=shape_data)):
+        # to distinguish whether it's shape issues or just one bad set of voltages, 
+        # check if electrodes are also too close for starting voltages
+        try: 
+            oe.V = oe.initial_V 
+            if(voltage_and_curr_check(oe,curr_bound=curr_bound,breakdown_field=breakdown_field,shape_data=shape_data)):
+                return 10000
+        except AttributeError:
+            return 10000
+    return c3
 
 def change_n_quads_and_calculate_curr(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, 
                                       bounds=None, curr_bound=None, breakdown_field=None):
@@ -133,7 +146,23 @@ def change_n_quads_and_calculate_curr(shape, oe, col, shape_data, t=TimeoutCheck
         return 10000
     return calculate_curr(oe, col, curr_bound, t)
 
-def calculate_c3(oe, col, curr_bound=None, t=None):
+def voltage_and_curr_check(oe,curr_bound=None,breakdown_field=None,shape_data=None):
+    ilog = Logger('internal')
+    if(curr_bound): # only works on single lens
+        coil_area = 0
+        for i in range(len(oe.coil_z_indices)):
+            coil_area += oe.determine_quad_area(oe.coil_z_indices[i], oe.coil_r_indices[i])
+        ilog.log.debug(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
+        # print(f'lens_curr: {oe.lens_curr}; coil_area: {coil_area}; density: {oe.lens_curr/coil_area}; bound: {curr_bound}')
+        if(oe.lens_curr/coil_area > curr_bound):
+            return True
+    # check happens both after reading optical properties and in change_n_quads_and_check
+    if(oe.lens_type == 'electrostatic' and breakdown_field and \
+            are_electrodes_too_close(oe, breakdown_field, shape_data.quads, shape_data.other_quads)):
+        return True
+    return False
+
+def calculate_c3(oe, col, curr_bound=None, t=None, plot=False):
     '''
     Workhorse function for automation. Writes optical element file, then 
     calculates field, then calculates optical properties, and then reads them.
@@ -141,8 +170,20 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
     Parameters:
         oe : OpticalElement object
             optical element on which to calculate spherical aberration.
+        col : OpticalColumn object
+            optical column on which to calculate spherical aberration.
+
+    Optional parameters:
+        curr_bound : current density bound for coils.
+            default None.
+        t : TimeoutCheck object
+            handles timeouts.
+        plot : bool
+            optional flag that can be manually switched in code at the moment for
+            plotting of shapes during automation.
     '''
     
+    ilog = Logger('internal')
     oe.write(oe.filename)
     oe.calc_field()
     if(col.program == 'optics'):
@@ -160,20 +201,14 @@ def calculate_c3(oe, col, curr_bound=None, t=None):
         if(col.program == 'optics'):
             col.read_optical_properties()
         if(col.program == 'mirror'):
-            col.read_mir_optical_properties(raytrace=False)
+            col.read_mir_optical_properties(raytrace=plot)
+            ilog.log.debug(f'Voltages: {col.V}')
+            if(plot):
+                col.plot_rays()
     except UnboundLocalError: # if optics fails, return garbage
-        return 100
+        return 10000
     olog = Logger('output')
     olog.log.info(f"f: {col.f}, C3: {col.c3}")
-    if(curr_bound): # only works on single lens
-        coil_area = 0
-        for i in range(len(oe.coil_z_indices)):
-            coil_area += oe.determine_quad_area(oe.coil_z_indices[i], oe.coil_r_indices[i])
-        ilog = Logger('internal')
-        ilog.log.debug(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
-        # print(f'lens_curr: {oe.lens_curr}; coil_area: {coil_area}; density: {oe.lens_curr/coil_area}; bound: {curr_bound}')
-        if(oe.lens_curr/coil_area > curr_bound):
-            return 100
     return np.abs(col.c3)
 
 def calculate_curr(oe, col, curr_bound=None, t=None):

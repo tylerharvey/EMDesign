@@ -9,8 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize, minimize_scalar
 from calculate_optical_properties import calc_properties_optics
-from automation_library import calculate_c3, \
-                               change_image_plane_and_check_retracing, \
+from automation_library import change_image_plane_and_check_retracing, \
                                change_voltages_and_shape_and_check_retracing, \
                                change_voltages_and_check_retracing, \
                                change_column_and_calculate_mag, \
