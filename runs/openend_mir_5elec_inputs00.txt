@@ -1,0 +1,21 @@
+Input file: /home/trh/data/mirror/open_end/5elec/30kV/openendmir5elec00_30kV.dat
+Output file: /home/trh/data/mirror/open_end/5elec/30kV/openendmir5elec01_30kV.dat
+Column file: /home/trh/data/mirror/open_end/5elec/30kV/mir_curved5_col00_30kV.dat
+Initial simplex: None
+z_min bound (mm): -10
+z_max bound (mm): 250
+r_min bound (mm): 2.5
+Voltages: -500,-1000,1584,6411,10944,30000
+Flags: f,f,v1,v2,v3,f
+Curved mirror: False
+End r indices: None
+Automate curvature where present: True
+Simplex scale (mm): 4
+Source position (mm): 109.7068
+Image position (mm): 109.7069
+Beam energy (V): 30000
+
+Comments:
+Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir5elec01.npy
+/home/trh/data/std_obj/trees/c/initial_simplex_for_obj34.npy
+11,21,31,31
