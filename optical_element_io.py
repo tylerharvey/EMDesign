@@ -9,6 +9,7 @@ from shapely.geometry import *
 from misc_library import Logger, \
                          cd, index_array_from_list, np_index, last_np_index, \
                          check_len, check_len_multi 
+from automation_library import prepare_shapes, voltage_and_curr_check
 
 # definitions for comments:
 # quad : four-pointed object used to define magnetic materials, coils, electrodes, etc. in MEBS
@@ -143,6 +144,7 @@ class OpticalElement:
         plot_mesh_fine
         plot_field
         add_curvature (converts optical element .dat file for FOFEM use)
+        is_excitation_too_strong
 
     Hard-coded attributes:
         colwidth : int
@@ -698,6 +700,9 @@ class OpticalElement:
                 raise ValueError
         return string
 
+    def is_excitation_too_strong(self):
+        pass
+
 
 class StrongMagLens(OpticalElement):
     '''
@@ -729,6 +734,7 @@ class StrongMagLens(OpticalElement):
     User methods:
         plot_hyst
         calc_field
+        is_curr_too_high
     '''
 
     lens_type = 'magnetic'
@@ -847,6 +853,16 @@ class StrongMagLens(OpticalElement):
             except TimeoutExpired:
                 self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
+
+    def is_excitation_too_strong(self):
+        return is_curr_too_high(self)
+
+    def is_curr_too_high(self):
+        try:
+            self.lens_curr
+        except:
+            raise AttributeError('Run calc_field(), calc_properties_optics(), and read_optical_properties() first!')
+        return voltage_and_curr_check(self)
 
 
 class WeakMagLens(StrongMagLens):
@@ -1007,6 +1023,7 @@ class ElecLens(OpticalElement):
     User methods:
         mirror_type
         calc_field
+        is_field_too_high
     '''
 
     lens_type = 'electrostatic'
@@ -1152,6 +1169,13 @@ class ElecLens(OpticalElement):
             except TimeoutExpired:
                 self.olog.log.info('Field calculation timed out. Rerunning.')
                 self.calc_field()
+
+    def is_excitation_too_strong(self):
+        return is_field_too_high(self)
+
+    def is_field_too_high(self):
+        _,_,shape_data = prepare_shapes(self,self.dielectric_z_indices+self.electrode_z_indices,self.dielectric_r_indices+self.electrode_r_indices)
+        return voltage_and_curr_check(self,shape_data=shape_data)
 
 
 class MirPotentials:

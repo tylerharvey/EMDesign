@@ -121,7 +121,7 @@ def optimize_broadly_for_retracing(
     options_mutable = options.copy()
 
     initial_shape, bounds, shape_data = prepare_shapes(
-        oe, col, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
+        oe, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
         z_curv_z_indices_list, z_curv_r_indices_list, r_curv_z_indices_list, r_curv_r_indices_list,
         end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature=False)
 
@@ -347,7 +347,7 @@ def optimize_many_shapes(
     options_mutable = options.copy()
 
     initial_shape, bounds, shape_data = prepare_shapes(
-        oe, col, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
+        oe, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
         z_curv_z_indices_list, z_curv_r_indices_list, r_curv_z_indices_list, r_curv_r_indices_list, 
         end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature)
 
@@ -475,7 +475,7 @@ def optimize_shape_for_current(
     options_mutable = options.copy()
 
     initial_shape, bounds, shape_data = prepare_shapes(
-        oe, col, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
+        oe, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
         z_curv_z_indices_list, z_curv_r_indices_list, r_curv_z_indices_list, r_curv_r_indices_list, 
         end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature)
 

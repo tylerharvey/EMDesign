@@ -259,7 +259,7 @@ def determine_img_pos_limits(oe):
     pad = (quad_z_max-quad_z_min)*0.1
     return quad_z_max+pad, oe.z.max()
 
-def prepare_shapes(oe, col, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None, 
+def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None, 
                    z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
                    r_curv_z_indices_list=None, r_curv_r_indices_list=None, 
                    end_z_indices_list=None, end_r_indices_list=None, 
