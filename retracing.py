@@ -3,6 +3,7 @@ Run as
 $ retracing.py input_file [log_file]
 if log_file is omitted, output is sent to STDOUT
 '''
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from optical_element_io import *
