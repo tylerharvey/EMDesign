@@ -100,8 +100,12 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
 
     # check bounds
     if(enforce_bounds):
-        lb_nn = (bounds[:,0] != None)
-        ub_nn = (bounds[:,1] != None)
+        try: 
+            lb_nn = (bounds[:,0] != None)
+            ub_nn = (bounds[:,1] != None)
+        except IndexError:
+            ilog.log.debug(f'{bounds=}\n{bounds.shape=}')
+            raise IndexError
         if((bounds[:,0][lb_nn] > shape[lb_nn]).any() or (bounds[:,1][ub_nn] < shape[ub_nn]).any()):
             ilog.log.debug(f'Bounds: {bounds[:,0][lb_nn]=} > {shape[lb_nn]=} '+
                            f'or {bounds[:,1][ub_nn]=} < {shape[ub_nn]=}')

@@ -7,6 +7,7 @@ Flags: f,v1,v2,f
 Curved mirror: True
 End r indices: 11,21,31,41
 z-curve r indices: 21,31
+Edit non-end electrodes: False
 Simplex scale (mm): 2
 Voltage scale (ln(V)): 0.5
 Image position (mm): 100

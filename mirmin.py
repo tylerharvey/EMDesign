@@ -46,6 +46,7 @@ col.write_mir_img_cond_file(mir_img_cond_filename, turning_point=5, energy=energ
                             potentials=MirPotentials(mir,voltages,flags))
 # saved for later use
 mir.initial_V = col.potentials.voltages
+mir.V = voltages
 mir.calc_field()
 calc_properties_mirror(mir,col)
 col.read_mir_optical_properties(raytrace=True)
