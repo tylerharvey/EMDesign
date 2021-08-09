@@ -100,14 +100,17 @@ def choose_logger(logfile=None):
         MEBSlogfile = logfile_noext+"_MEBS"+ext
         outputlogfile = logfile_noext+"_output"+ext
         internallogfile = logfile_noext+"_internal"+ext
+        boundslogfile = logfile_noext+"_bounds"+ext
     else:
         MEBSlogfile = None
         outputlogfile = None
         internallogfile = None
+        boundslogfile = None
 
     MEBS = setup_logger('MEBS',MEBSlogfile,level=logging.DEBUG)
     output = setup_logger('output',outputlogfile)
     internal = setup_logger('internal',internallogfile,level=logging.DEBUG)
+    bounds = setup_logger('bounds',boundslogfile,level=logging.DEBUG)
 
 choose_logger()
 

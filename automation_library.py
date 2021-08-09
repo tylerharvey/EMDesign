@@ -59,10 +59,10 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     lb_nn = (bounds[:,0] != None)
     ub_nn = (bounds[:,1] != None)
     if((bounds[:,0][lb_nn] > col_vars[lb_nn]).any() or (bounds[:,1][ub_nn] < col_vars[ub_nn]).any()):
-        ilog = Logger('internal')
-        ilog.log.warning('Hit bounds')
-        ilog.log.warning(f'{bounds=}')
-        ilog.log.warning(f'{col_vars=}')
+        blog = Logger('bounds')
+        blog.log.warning('Hit bounds')
+        blog.log.warning(f'{bounds=}')
+        blog.log.warning(f'{col_vars=}')
         return 1000
 
     i = 0
@@ -89,6 +89,7 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
 
     ilog = Logger('internal')
+    blog = Logger('bounds')
     # load shapes
     oe.z[shape_data.edge_points], oe.z[shape_data.Rboundary_edge_points], oe.z[shape_data.end_points], \
         oe.r[shape_data.edge_points], oe.r[shape_data.mirrored_edge_points], inv_z_curv, inv_r_curv \
@@ -107,7 +108,7 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
             ilog.log.debug(f'{bounds=}\n{bounds.shape=}')
             raise IndexError
         if((bounds[:,0][lb_nn] > shape[lb_nn]).any() or (bounds[:,1][ub_nn] < shape[ub_nn]).any()):
-            ilog.log.debug(f'Bounds: {bounds[:,0][lb_nn]=} > {shape[lb_nn]=} '+
+            blog.log.debug(f'Bounds: {bounds[:,0][lb_nn]=} > {shape[lb_nn]=} '+
                            f'or {bounds[:,1][ub_nn]=} < {shape[ub_nn]=}')
             return True
     if(does_coarse_mesh_intersect(oe)):
