@@ -52,6 +52,8 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     retracing = col.evaluate_retracing()
     olog = Logger('output')
     olog.log.info(f'Retrace deviation: {retracing}')
+    ilog = Logger('internal')
+    ilog.log.debug(f'Voltages: {potentials.voltages}')
     return retracing
 
 def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
