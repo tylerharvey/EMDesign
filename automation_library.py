@@ -88,7 +88,8 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     ilog.log.debug(f'{col.mag=}')
     return 1/np.abs(col.mag)
 
-def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None):
+def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None,
+                                                    enforce_smoothness=False, max_angle=60):
 
     ilog = Logger('internal')
     blog = Logger('bounds')
@@ -122,6 +123,10 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
     if(oe.lens_type == 'electrostatic' and breakdown_field and \
             are_electrodes_too_close(oe, breakdown_field, shape_data.quads, shape_data.other_quads)):
         return True
+    if(enforce_smoothness):
+        pass
+        # if(are_corners_too_sharp()):
+            # return True
     return False
 
 def change_n_quads_and_calculate(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, bounds=None, 

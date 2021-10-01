@@ -37,6 +37,8 @@ class MEBSSegment:
             else: 
                 self.shape = Linestring(prev_segment.shape)
             self.arc = prev_segment.arc
+            self.point_a = prev_segment.point_b if reverse else prev_segment.point_a
+            self.point_b = prev_segment.point_a if reverse else prev_segment.point_b
         else:
             self.point_a = point_a
             self.point_b = point_b
@@ -74,6 +76,44 @@ class MEBSSegment:
             else:
                 self.arc = False
                 self.shape = LineString([self.point_a,self.point_b])
+
+    def measure_intersect_angle(self,next_segment):
+        '''
+        Measure angle between this segment and next_segment at the intersection
+        segment.point_b and next_segment.point_a. Angle defined so that two parallel
+        segments have angle=0. A negative angle indicates convexity, while a positive
+        angle indicates concavity. Note that concavity can occur without positive angles
+        due to curvature.
+
+        Parameters:
+            next_segment : MEBSSegment
+        '''
+        
+        angle_0 = measure_takeoff_angle(*return_points(self,0))
+        angle_1 = measure_takeoff_angle(*return_points(next_segment,1))
+        angle_diff = angle_1-angle_0
+        # correct for wraparound issues
+        if(np.abs(angle_diff - 2*np.pi) < np.abs(angle_diff)):
+            angle_diff -= 2*np.pi
+        elif(np.abs(angle_diff+2*np.pi) < np.abs(angle_diff)):
+            angle_diff += 2*np.pi
+        return angle_diff
+
+def return_points(segment,segment_index):
+    if(segment.arc):
+        if(segment_index == 0):
+            return segment.shape.coords[-2:]
+        elif(segment_index == 1):
+            return segment.shape.coords[:2]
+    else:
+        return segment.point_a,segment.point_b
+            
+
+def measure_takeoff_angle(point_i,point_f):
+    # make sure everything is a shapely Point
+    point_i = Point(point_i) if isinstance(point_i,tuple) else point_i
+    point_f = Point(point_f) if isinstance(point_f,tuple) else point_f
+    return np.arctan2(point_f.y-point_i.y,point_f.x-point_i.x)
 
 
 
@@ -490,6 +530,9 @@ class OpticalElement:
         return seg_np_indices
 
     def retrieve_MEBSSegments(self, z_indices, r_indices):
+        '''
+        Retrieves previously defined MEBSSegments in clockwise order for a quad.
+        '''
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
         if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
