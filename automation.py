@@ -261,7 +261,8 @@ def optimize_many_shapes(
         end_z_indices_list=None, end_r_indices_list=None, z_min=None, z_max=None, r_min=0, r_max=None, 
         automate_present_curvature=False, method='Nelder-Mead', manual_bounds=True, 
         options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True}, 
-        simplex_scale=5, curve_scale=0.05, curr_bound=3, breakdown_field=10e3, adaptive_simplex=True):
+        simplex_scale=5, curve_scale=0.05, curr_bound=3, breakdown_field=10e3, enforce_smoothness=False,
+        adaptive_simplex=True):
     '''
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
@@ -361,16 +362,21 @@ def optimize_many_shapes(
         olog.log.info('Generating initial simplex.')
         options_mutable['initial_simplex'] = generate_initial_simplex(
             initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), 
-            breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, adaptive=adaptive_simplex)
+            breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, 
+            enforce_smoothness=enforce_smoothness, adaptive=adaptive_simplex)
         olog.log.info('Finished initial simplex generation.')
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
             result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
-                              True, np.array(bounds), curr_bound), method=method, options=options_mutable)
+                              True, np.array(bounds), curr_bound, None, enforce_smoothness), method=method, 
+                              options=options_mutable)
         elif(oe.lens_type == 'electrostatic'):
             result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
-                              True, np.array(bounds), None, breakdown_field), method=method, options=options_mutable)
+                              True, np.array(bounds), None, breakdown_field, enforce_smoothness), method=method, 
+                              options=options_mutable)
     else:
+        raise NotImplementedError
+        # no longer actively maintaining this
         result = minimize(change_n_quads_and_calculate, initial_shape,
                           args=(oe, col, shape_data, TimeoutCheck()),
                           bounds=bounds, method=method, options=options_mutable)
@@ -391,6 +397,8 @@ def optimize_shape_for_current(
         options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True}, 
         simplex_scale=5, curve_scale=0.05, curr_bound=3, breakdown_field=10e3, adaptive_simplex=True):
     '''
+    Not actively maintained. General funcion necessary.
+
     Automated optimization of the shape of one or more quads with 
     scipy.optimize.minimize.
 

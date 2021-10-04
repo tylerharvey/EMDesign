@@ -30,18 +30,22 @@ from automation_library import prepare_shapes, voltage_and_curr_check
 
 class MEBSSegment:
     
-    def __init__(self, point_a, point_b, curvature=0, prev_segment=None, reverse=False):
+    def __init__(self, point_a, point_b, curvature=0, prev_segment=None, reverse=False, check_angle=False):
         if(prev_segment):
             if(reverse):
                 self.shape = LineString(prev_segment.shape.coords[::-1]) 
+                self.point_a = prev_segment.point_b
+                self.point_b = prev_segment.point_a
             else: 
                 self.shape = Linestring(prev_segment.shape)
+                self.point_a = prev_segment.point_a
+                self.point_b = prev_segment.point_b
             self.arc = prev_segment.arc
-            self.point_a = prev_segment.point_b if reverse else prev_segment.point_a
-            self.point_b = prev_segment.point_a if reverse else prev_segment.point_b
+            self.check_angle = prev_segment.check_angle
         else:
             self.point_a = point_a
             self.point_b = point_b
+            self.check_angle = check_angle
             if(curvature and curvature != np.inf):
                 self.arc = True
                 self.radius = np.abs(curvature)
@@ -591,13 +595,17 @@ class OpticalElement:
     def define_coarse_mesh_segments(self):
         segments = np.empty(self.z.shape+(2,),dtype=np.object)
         for i in range(self.z.shape[0]):
+            if(self.r[i,0] == self.r[:,0].max()):
+                check_angle = False # don't check for smoothness at the r boundary
+            else:
+                check_angle = True
             for j in range(self.z.shape[1]):
                 if(i+1 < self.z.shape[0]):
                     segments[i,j,0] = MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i+1,j], self.r[i+1,j]), 
-                                                  self.z_curv[i,j])
+                                                  self.z_curv[i,j], check_angle=check_angle)
                 if(j+1 < self.z.shape[1]):
                     segments[i,j,1] = MEBSSegment(Point(self.z[i,j], self.r[i,j]), Point(self.z[i,j+1], self.r[i,j+1]), 
-                                                  self.r_curv[i,j])
+                                                  self.r_curv[i,j], check_angle=check_angle)
         self.coarse_segments = segments
         return segments.flatten()
 

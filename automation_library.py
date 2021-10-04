@@ -124,18 +124,17 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
             are_electrodes_too_close(oe, breakdown_field, shape_data.quads, shape_data.other_quads)):
         return True
     if(enforce_smoothness):
-        pass
-        # if(are_corners_too_sharp()):
-            # return True
+        if(are_corners_too_sharp(oe, shape_data.quads, max_angle)):
+            return True
     return False
 
 def change_n_quads_and_calculate(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, bounds=None, 
-                                 curr_bound=None, breakdown_field=None):
+                                 curr_bound=None, breakdown_field=None, enforce_smoothness=False):
     ilog = Logger('internal')
     if(t.timed_out):
         return 10000
     if(change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=enforce_bounds, bounds=bounds, 
-                                breakdown_field=breakdown_field)):
+                                breakdown_field=breakdown_field, enforce_smoothness=enforce_smoothness)):
         return 10000
     c3 = calculate_c3(oe, col, curr_bound, t)
     if(voltage_and_curr_check(oe,curr_bound=curr_bound,breakdown_field=breakdown_field,shape_data=shape_data)):
@@ -394,7 +393,7 @@ def define_edges(oe, z_indices_list, r_indices_list, remove_duplicates_and_mirro
     return quads, all_edge_points_list, all_mirrored_edge_points_list, all_Rboundary_edge_points_list
 
 def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True, bounds=None, breakdown_field=None, 
-                             scale=5, curve_scale=0, adaptive=True, N=0):
+                             scale=5, curve_scale=0, enforce_smoothness=False, adaptive=True, N=0):
     n_curve_points = shape_data.n_curv_pts
     rng = np.random.default_rng()
     # N can be passed as an argument to use this shape simplex as a part of a larger simplex
@@ -472,6 +471,15 @@ def find_Rboundary_edge_points(oe, edge_points_list):
     edge_points_list = [point for point in edge_points_list if point[0] != rmax_np_index]
     return Rboundary_edge_points_list, edge_points_list
 
+def are_corners_too_sharp(oe, quads):
+    for quad in quads:
+        segments = oe.retrieve_MEBSSegments(quad.z_indices, quad.r_indices)
+        for i range(len(segments)):
+            if(segments[i-1].check_angle and segments[i].check_angle):
+                if(np.abs(segments[i-1].measure_intersect_angle(segments[i])) > max_angle):
+                    return True
+    return False
+
 def are_electrodes_too_close(oe, breakdown_field, quads, other_quads):
     ilog = Logger('internal')
     for i,quad in enumerate(quads):
@@ -481,6 +489,7 @@ def are_electrodes_too_close(oe, breakdown_field, quads, other_quads):
                     if(max_field(quad, other_quad, oe) > breakdown_field):
                         ilog.log.debug(f'{max_field(quad, other_quad, oe)=} > {breakdown_field=}')
                         return True
+    return False
 
 def max_field(quad, other_quad, oe):
     delta_V = np.abs(oe.V[quad.electrode_index] - oe.V[other_quad.electrode_index])
