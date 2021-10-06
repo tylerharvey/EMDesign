@@ -474,7 +474,7 @@ def find_Rboundary_edge_points(oe, edge_points_list):
 def are_corners_too_sharp(oe, quads):
     for quad in quads:
         segments = oe.retrieve_MEBSSegments(quad.z_indices, quad.r_indices)
-        for i range(len(segments)):
+        for i in range(len(segments)):
             if(segments[i-1].check_angle and segments[i].check_angle):
                 if(np.abs(segments[i-1].measure_intersect_angle(segments[i])) > max_angle):
                     return True
