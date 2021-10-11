@@ -412,13 +412,13 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
             for x in np.arange(2.5*scale,0,-scale/4):
                 shape_copy[i] = initial_shape[i]+x
                 if(not change_n_quads_and_check(shape_copy, oe, shape_data, enforce_bounds,
-                                                bounds, breakdown_field)):
+                                                bounds, breakdown_field, enforce_smoothness)):
                     right[i] = x
                     break
             for x in np.arange(-2.5*scale,0,scale/4):
                 shape_copy[i] = initial_shape[i]+x
                 if(not change_n_quads_and_check(shape_copy, oe, shape_data, enforce_bounds,
-                                                bounds, breakdown_field)):
+                                                bounds, breakdown_field, enforce_smoothness)):
                     left[i] = x
                     break
             if(left[i] == 0): 
@@ -437,7 +437,8 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
             # keep trying until simplex point is valid
             # inefficient but simple
             adj = 1
-            while(change_n_quads_and_check(simplex[i,:N_s], oe, shape_data, enforce_bounds, bounds, breakdown_field)):
+            while(change_n_quads_and_check(simplex[i,:N_s], oe, shape_data, enforce_bounds, 
+                                           bounds, breakdown_field, enforce_smoothness)):
                 simplex[i,:N_s] = np.concatenate([tfn.rvs(x_0=initial_shape_no_curves, 
                                                           sigma_l=np.abs(left)/adj, sigma_r=np.abs(right)/adj),
                                                   rng.normal(initial_curve_shape, curve_scale)])
@@ -451,7 +452,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
             # keep trying until simplex point is valid
             # inefficient but simple
             while(change_n_quads_and_check(simplex[i,:N_s], oe, shape_data, enforce_bounds,
-                                           bounds, breakdown_field)):
+                                           bounds, breakdown_field, enforce_smoothness)):
                 simplex[i,:N_s] = rng.normal(initial_shape, scale_array)
             ilog.log.debug(f'Simplex {i+1} of {N+1} complete.')
     # save result
