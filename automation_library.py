@@ -512,7 +512,12 @@ def intersections_in_segment_list(segments):
         if(segment):
             for other_segment in segments[i+1:]:
                 if(other_segment and segment.shape.crosses(other_segment.shape)):
-                    return True
+                    intersection_point = segment.shape.intersection(other_segment.shape)
+                    if([point for point in segment.shape.boundary if point.almost_equals(intersection_point)] or
+                       [point for point in other_segment.shape.boundary if point.almost_equals(intersection_point)]):
+                        continue
+                    else:
+                        return True
     return False
 
 # only checks non-coarse fine with coarse
@@ -533,7 +538,8 @@ def intersections_between_two_segment_lists(segments, other_segments):
                 if(other_segment and segment.shape.crosses(other_segment.shape)):
                     intersection_point = segment.shape.intersection(other_segment.shape)
                     if([point for point in segment.shape.boundary if point.almost_equals(intersection_point)] or
-                       [point for point in other_segment.shape.boundary if point.almost_equals(intersection_point)]):
+                       [point for point in other_segment.shape.boundary if point.almost_equals(intersection_point)] or
+                       segment.shape.almost_equals(other_segment.shape)):
                         continue
                     else:
                         return True
