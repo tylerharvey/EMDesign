@@ -14,6 +14,7 @@ Simplex scale (mm): 4
 Source position (mm): 109.7068
 Image position (mm): 109.7069
 Beam energy (V): 30000
+Target C3 (mm): 0
 
 Comments:
 Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir5elec01.npy

@@ -258,7 +258,7 @@ def optimize_column_for_mag(col,img_pos=50,options=None, lens_pos_min=0, lens_po
 def optimize_many_shapes(
         oe, col, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None,
         z_curv_z_indices_list=None, z_curv_r_indices_list=None, r_curv_z_indices_list=None, r_curv_r_indices_list=None, 
-        end_z_indices_list=None, end_r_indices_list=None, z_min=None, z_max=None, r_min=0, r_max=None, 
+        end_z_indices_list=None, end_r_indices_list=None, z_min=None, z_max=None, r_min=0, r_max=None, c3_target=0.
         automate_present_curvature=False, method='Nelder-Mead', manual_bounds=True, 
         options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True}, 
         simplex_scale=5, curve_scale=0.05, curr_bound=3, breakdown_field=10e3, enforce_smoothness=False,
@@ -368,12 +368,12 @@ def optimize_many_shapes(
     if(manual_bounds):
         if(oe.lens_type == 'magnetic'):
             result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
-                              True, np.array(bounds), curr_bound, None, enforce_smoothness), method=method, 
-                              options=options_mutable)
+                              True, np.array(bounds), curr_bound, None, enforce_smoothness, c3_target), 
+                              method=method, options=options_mutable)
         elif(oe.lens_type == 'electrostatic'):
             result = minimize(change_n_quads_and_calculate, initial_shape, args=(oe, col, shape_data, TimeoutCheck(), 
-                              True, np.array(bounds), None, breakdown_field, enforce_smoothness), method=method, 
-                              options=options_mutable)
+                              True, np.array(bounds), None, breakdown_field, enforce_smoothness, c3_target), 
+                              method=method, options=options_mutable)
     else:
         raise NotImplementedError
         # no longer actively maintaining this

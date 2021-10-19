@@ -129,7 +129,7 @@ def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds
     return False
 
 def change_n_quads_and_calculate(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, bounds=None, 
-                                 curr_bound=None, breakdown_field=None, enforce_smoothness=False):
+                                 curr_bound=None, breakdown_field=None, enforce_smoothness=False, c3_target=0):
     ilog = Logger('internal')
     if(t.timed_out):
         return 10000
@@ -146,7 +146,7 @@ def change_n_quads_and_calculate(shape, oe, col, shape_data, t=TimeoutCheck(), e
                 return 10000
         except AttributeError:
             return 10000
-    return c3
+    return np.abs(c3-c3_target)
 
 def change_n_quads_and_calculate_curr(shape, oe, col, shape_data, t=TimeoutCheck(), enforce_bounds=False, 
                                       bounds=None, curr_bound=None, breakdown_field=None):
