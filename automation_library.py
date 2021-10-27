@@ -36,12 +36,14 @@ def change_voltages_and_check_retracing(voltages_and_plane, col, potentials, fla
     return retracing
 
 def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potentials, flag_mask,
-                                                  shape_data, bounds, breakdown_field, kwargs):
+                                                  shape_data, bounds, breakdown_field, enforce_smoothness, 
+                                                  kwargs):
     potentials.voltages[flag_mask] = parameters[shape_data.n_pts:-1]
     img_pos = parameters[-1]
     if(shape_data.n_pts and \
        change_n_quads_and_check(parameters[:shape_data.n_pts], oe, shape_data, enforce_bounds=True, 
-                                bounds=bounds, breakdown_field=breakdown_field)):
+                                bounds=bounds, breakdown_field=breakdown_field, 
+                                enforce_smoothness=enforce_smoothness)):
         return 100
 
     oe.write(oe.filename)

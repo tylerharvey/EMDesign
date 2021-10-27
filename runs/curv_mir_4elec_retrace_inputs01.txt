@@ -13,6 +13,7 @@ Voltage scale (ln(V)): 2
 Image position (mm): 140
 Beam energy (V): 200000
 Max Function Evaluations in Minimizer: 10000
+Enforce smoothness: False
 
 Comments:
 Initial simplex: /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir4elec01.npy

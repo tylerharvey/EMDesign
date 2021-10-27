@@ -42,7 +42,7 @@ def optimize_broadly_for_retracing(
         other_z_indices_list=None, other_r_indices_list=None, z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
         r_curv_z_indices_list=None, r_curv_r_indices_list=None, end_z_indices_list=None, end_r_indices_list=None, 
         z_min=None, z_max=None, r_min=0, r_max=None, breakdown_field=10e3, 
-        options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True}, 
+        options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True}, enforce_smoothness=False,
         simplex_scale=4, curve_scale=0.05, voltage_logscale=2, **kwargs):
     '''
     Automated optimization of any electrode shape, electrode voltages,
@@ -138,7 +138,8 @@ def optimize_broadly_for_retracing(
     if(options.get('initial_simplex') is None):
         options_mutable['initial_simplex'] = generate_initial_simplex(
             initial_shape, oe, shape_data, enforce_bounds=True, bounds=np.array(bounds), 
-            breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, adaptive=True, N=N)
+            breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, 
+            enforce_smoothness=enforce_smoothness, adaptive=True, N=N)
 
      
 
@@ -155,7 +156,8 @@ def optimize_broadly_for_retracing(
 
     oe.automated = True
     result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
-                      args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, kwargs),
+                      args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, 
+                            enforce_smoothness, kwargs), 
                       method='Nelder-Mead', options=options_mutable)
     ilog = Logger('internal')
     ilog.logger.debug(f'Optimize {result=}')
@@ -353,7 +355,7 @@ def optimize_many_shapes(
         end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature)
 
     if(change_n_quads_and_check(np.array(initial_shape), oe, shape_data, enforce_bounds=True, bounds=bounds, 
-            breakdown_field=breakdown_field)):
+            breakdown_field=breakdown_field, enforce_smoothness=enforce_smoothness)):
         raise ValueError('Initial shape intersects or violates bounds.')
     oe.automated = True
     olog = Logger('output')
