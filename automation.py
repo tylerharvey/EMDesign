@@ -260,7 +260,7 @@ def optimize_column_for_mag(col,img_pos=50,options=None, lens_pos_min=0, lens_po
 def optimize_many_shapes(
         oe, col, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None,
         z_curv_z_indices_list=None, z_curv_r_indices_list=None, r_curv_z_indices_list=None, r_curv_r_indices_list=None, 
-        end_z_indices_list=None, end_r_indices_list=None, z_min=None, z_max=None, r_min=0, r_max=None, c3_target=0.
+        end_z_indices_list=None, end_r_indices_list=None, z_min=None, z_max=None, r_min=0, r_max=None, c3_target=0,
         automate_present_curvature=False, method='Nelder-Mead', manual_bounds=True, 
         options={'disp':True,'xatol':0.01,'fatol':0.001,'adaptive':True,'initial_simplex':None,'return_all':True}, 
         simplex_scale=5, curve_scale=0.05, curr_bound=3, breakdown_field=10e3, enforce_smoothness=False,
