@@ -43,7 +43,7 @@ def optimize_broadly_for_retracing(
         r_curv_z_indices_list=None, r_curv_r_indices_list=None, end_z_indices_list=None, end_r_indices_list=None, 
         z_min=None, z_max=None, r_min=0, r_max=None, breakdown_field=10e3, 
         options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True}, enforce_smoothness=False,
-        simplex_scale=4, curve_scale=0.05, voltage_logscale=2, **kwargs):
+        simplex_scale=4, curve_scale=0.05, voltage_logscale=2, max_r_to_edit=None, **kwargs):
     '''
     Automated optimization of any electrode shape, electrode voltages,
     and the image position for ray-retracing. Shape optimization is very
@@ -123,7 +123,8 @@ def optimize_broadly_for_retracing(
     initial_shape, bounds, shape_data = prepare_shapes(
         oe, z_indices_list, r_indices_list, other_z_indices_list, other_r_indices_list, 
         z_curv_z_indices_list, z_curv_r_indices_list, r_curv_z_indices_list, r_curv_r_indices_list,
-        end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, automate_present_curvature=False)
+        end_z_indices_list, end_r_indices_list, z_min, z_max, r_min, r_max, 
+        automate_present_curvature=False, max_r_to_edit=max_r_to_edit)
 
     potentials.voltages = np.array(potentials.voltages) 
     flag_mask = np.array(potentials.flags) != 'f'

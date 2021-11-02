@@ -14,6 +14,7 @@ Image position (mm): 100
 Beam energy (V): 200000
 Max Function Evaluations in Minimizer: 10000
 Enforce smoothness: False
+Max radius to edit: None
 
 Comments:
 /home/trh/data/mirror/base/initial_simplex_for_curvedspacedmir4elec07_retracing.npy

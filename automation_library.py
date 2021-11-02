@@ -276,7 +276,8 @@ def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None
                    z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
                    r_curv_z_indices_list=None, r_curv_r_indices_list=None, 
                    end_z_indices_list=None, end_r_indices_list=None, 
-                   z_min=None, z_max=None, r_min=0, r_max=None, automate_present_curvature=False):
+                   z_min=None, z_max=None, r_min=0, r_max=None, automate_present_curvature=False,
+                   max_r_to_edit=None):
 
     if(z_indices_list is None):
         z_indices_list = []
@@ -300,7 +301,8 @@ def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None
         end_r_indices_list = []
 
     quads, all_edge_points_list, all_mirrored_edge_points_list, \
-        all_Rboundary_edge_points_list = define_edges(oe, z_indices_list, r_indices_list)
+        all_Rboundary_edge_points_list = define_edges(oe, z_indices_list, r_indices_list, 
+                                                      max_r_to_edit=max_r_to_edit)
 
     other_quads,_,_,_ = define_edges(oe, other_z_indices_list, other_r_indices_list, 
                                      remove_duplicates_and_mirrored=False)
@@ -371,7 +373,7 @@ def define_end(oe, z_indices_list, r_indices_list):
 # include points that will be changed by optimization
 # it is set to false for other quads outside the optimization
 # that are only defined here for checking intersections
-def define_edges(oe, z_indices_list, r_indices_list, remove_duplicates_and_mirrored=True):
+def define_edges(oe, z_indices_list, r_indices_list, remove_duplicates_and_mirrored=True, max_r_to_edit=None):
     n_quads = len(z_indices_list)
     quads = []
     all_edge_points_list = []
@@ -380,7 +382,8 @@ def define_edges(oe, z_indices_list, r_indices_list, remove_duplicates_and_mirro
     for i in range(n_quads):
         quads.append(Quad(oe, z_indices_list[i], r_indices_list[i], 
                           separate_mirrored=(remove_duplicates_and_mirrored and oe.freeze_xy_plane), 
-                          separate_radial_boundary=(remove_duplicates_and_mirrored and oe.freeze_radial_boundary)))
+                          separate_radial_boundary=(remove_duplicates_and_mirrored and oe.freeze_radial_boundary),
+                          max_r_to_edit=max_r_to_edit))
         if(remove_duplicates_and_mirrored):
             quads[-1].delete_overlaps(quads[-1].edge_points_list, all_edge_points_list)
             if(oe.freeze_xy_plane):
@@ -473,6 +476,11 @@ def find_Rboundary_edge_points(oe, edge_points_list):
     Rboundary_edge_points_list = [point for point in edge_points_list if point[0] == rmax_np_index]
     edge_points_list = [point for point in edge_points_list if point[0] != rmax_np_index]
     return Rboundary_edge_points_list, edge_points_list
+
+def find_nonedited_edge_points(oe, edge_points_list, max_r_to_edit):
+    nonedited_edge_points_list = [point for point in edge_points_list if oe.r[point] > max_r_to_edit]
+    edge_points_list = [point for point in edge_points_list if oe.r[point] <= max_r_to_edit]
+    return nonedited_edge_points_list, edge_points_list
 
 def are_corners_too_sharp(oe, quads, max_angle):
     for quad in quads:
@@ -571,7 +579,8 @@ class Quad:
     Class to carry around quad information for optimization.
     '''
 
-    def __init__(self, oe, z_indices, r_indices, separate_mirrored=True, separate_radial_boundary=False):
+    def __init__(self, oe, z_indices, r_indices, separate_mirrored=True, separate_radial_boundary=False, 
+                 max_r_to_edit=None):
 
         # determine if quad is electrode
         try:  # works if lens is electric
@@ -597,7 +606,11 @@ class Quad:
         self.mirrored_edge_points_list, self.edge_points_list = find_mirrored_edge_points(oe, self.edge_points_list) \
                                                                 if separate_mirrored else ([],self.edge_points_list)
         self.Rboundary_edge_points_list, self.edge_points_list = find_Rboundary_edge_points(oe, self.edge_points_list) \
-                                                                 if separate_radial_boundary else ([],self.edge_points_list)
+                                                                 if separate_radial_boundary else \
+                                                                 ([],self.edge_points_list)
+        self.nonedited_edge_points_list, self.edge_points_list = find_nonedited_edge_points(oe, self.edge_points_list, 
+                                                                                            max_r_to_edit) \
+                                                                 if max_r_to_edit else ([],self.edge_points_list)
 
     def delete_overlaps(self, edge_points_list, prior_edge_points_list):
         edge_points_list = [point for point in edge_points_list if point not in prior_edge_points_list]
