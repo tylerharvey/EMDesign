@@ -161,7 +161,7 @@ def optimize_broadly_for_retracing(
                             enforce_smoothness, kwargs), 
                       method='Nelder-Mead', options=options_mutable)
     ilog = Logger('internal')
-    ilog.logger.debug(f'Optimize {result=}')
+    ilog.log.debug(f'Optimize {result=}')
 
     if(options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
@@ -188,7 +188,7 @@ def optimize_voltages_for_retracing(col, potentials, img_pos, options=None, **kw
                       args=(col, potentials, flag_mask, kwargs),
                       method='Nelder-Mead', options=options)
     ilog = Logger('internal')
-    ilog.logger.debug(f'Optimize {result=}')
+    ilog.log.debug(f'Optimize {result=}')
     potentials.voltages[flag_mask] = result.x[:-1]
     img_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
