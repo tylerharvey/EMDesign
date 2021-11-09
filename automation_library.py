@@ -91,7 +91,7 @@ def change_column_and_calculate_mag(col_vars, col, bounds, kwargs):
     return 1/np.abs(col.mag)
 
 def change_n_quads_and_check(shape, oe, shape_data, enforce_bounds=False, bounds=None, breakdown_field=None,
-                                                    enforce_smoothness=False, max_angle=60):
+                                                    enforce_smoothness=False, max_angle=60*np.pi/180):
 
     ilog = Logger('internal')
     blog = Logger('bounds')
