@@ -483,12 +483,15 @@ def find_nonedited_edge_points(oe, edge_points_list, max_r_to_edit):
     return nonedited_edge_points_list, edge_points_list
 
 def are_corners_too_sharp(oe, quads, max_angle):
+    ilog = Logger('internal')
     for quad in quads:
         if(quad.electrode):
             segments = oe.retrieve_MEBSSegments(quad.z_indices, quad.r_indices)
             for i in range(len(segments)):
                 if(segments[i-1].check_angle and segments[i].check_angle):
                     if(np.abs(segments[i-1].measure_intersect_angle(segments[i])) > max_angle):
+                        ilog.log.debug(f'Max angle exceeded betweeen {segments[i-1].shape.coords},'
+                                        '{segments[i].shape.coords}')
                         return True
     return False
 
