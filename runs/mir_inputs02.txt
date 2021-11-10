@@ -14,6 +14,8 @@ Simplex scale: 3
 Source position: 90
 Image position: 95
 Beam energy (V): 200000
+Enforce smoothness: False
+Target C3 (mm): 0
 
 
 Comments:
