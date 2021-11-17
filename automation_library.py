@@ -50,14 +50,20 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     oe.calc_field()
     col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset, 
                             screen_pos=img_pos, minimum_rays=True,**kwargs)
+    ilog = Logger('internal')
     try:
         col.calc_rays()
     except TimeoutExpired:
         return 100
-    retracing = col.evaluate_retracing()
+    try:
+        retracing = col.evaluate_retracing()
+    except ValueError:
+        # likely manually killed soray on timeout
+        ilog.log.debug('Error reading rays, likely because of a killed process.'
+                       ' Ignore this error if you killed soray.exe.')
+        return 100
     olog = Logger('output')
     olog.log.info(f'Retrace deviation: {retracing}')
-    ilog = Logger('internal')
     ilog.log.debug(f'Voltages: {potentials.voltages}')
     return retracing
 
@@ -464,6 +470,7 @@ def generate_initial_simplex(initial_shape, oe, shape_data, enforce_bounds=True,
                 simplex[i,:N_s] = rng.normal(initial_shape, scale_array)
             ilog.log.debug(f'Simplex {i+1} of {N+1} complete.')
     # save result
+    olog.log.info('Simplex generation complete')
     np.save(os.path.join(oe.dirname,'initial_simplex_for_'+oe.basename_noext), simplex)
     # return shape to initial shape
     change_n_quads_and_check(initial_shape, oe, shape_data)
