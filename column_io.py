@@ -100,7 +100,7 @@ class OpticalColumn:
             self.single = True
         self.img_source_offset = 0.0001
 
-    def calc_rays(self):
+    def calc_rays(self,i=0,max_attempts=3):
         '''
         Run after write_raytrace_file() to calculate rays.
 
@@ -111,8 +111,13 @@ class OpticalColumn:
                 self.Mlog.log.debug(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
                                      timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
-                self.olog.log.info('Ray tracing timed out. Rerunnning.')
-                self.calc_rays()
+                i+=1
+                if(i > max_attempts):
+                    olog.log.critical('Maximum attempts reached.')
+                    raise TimeoutExpired
+                else:
+                    self.olog.log.info('Ray tracing timed out. Rerunnning.')
+                    self.calc_rays(i)
 
     def load_rays(self):
         step, z, r, x, y = np.loadtxt(os.path.join(self.dirname,self.raytracebasename_noext+'.raf'), 

@@ -50,7 +50,10 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     oe.calc_field()
     col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset, 
                             screen_pos=img_pos, minimum_rays=True,**kwargs)
-    col.calc_rays()
+    try:
+        col.calc_rays()
+    except TimeoutExpired:
+        return 100
     retracing = col.evaluate_retracing()
     olog = Logger('output')
     olog.log.info(f'Retrace deviation: {retracing}')
