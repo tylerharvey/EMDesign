@@ -113,7 +113,7 @@ class OpticalColumn:
             except TimeoutExpired:
                 i+=1
                 if(i > max_attempts):
-                    olog.log.critical('Maximum attempts reached.')
+                    self.olog.log.critical('Maximum attempts reached.')
                     raise TimeoutExpired
                 else:
                     self.olog.log.info('Ray tracing timed out. Rerunnning.')
