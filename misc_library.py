@@ -65,7 +65,7 @@ def cd(newdir):
 
 class MEBSError(Exception):
     '''Exception for MEBS process errors.'''
-    pas
+    pass
 
 def setup_logger(name, logfile=None, level=logging.INFO):
     bare_format = logging.Formatter('%(asctime)s: %(message)s')
