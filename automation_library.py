@@ -9,7 +9,7 @@ from calculate_optical_properties import calc_properties_optics, calc_properties
 import scipy.stats as st
 import asyncio
 from shapely.geometry import *
-from misc_library import Logger, cd, index_array_from_list, np_index
+from misc_library import Logger, cd, index_array_from_list, np_index, MEBSError
 
 class TimeoutCheck:
     def __init__(self):
@@ -53,7 +53,7 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     ilog = Logger('internal')
     try:
         col.calc_rays()
-    except TimeoutExpired:
+    except MEBSError:
         return 100
     try:
         retracing = col.evaluate_retracing()
@@ -211,7 +211,7 @@ def calculate_c3(oe, col, curr_bound=None, t=None, plot=False):
     if(col.program == 'optics'):
         try:
             calc_properties_optics(col)
-        except TimeoutExpired: # if optics has failed over and over again, bail
+        except MEBSError: # if optics has failed over and over again, bail
             t.timed_out = True
             return 10000 # likely dongle error
     if(col.program == 'mirror'):
@@ -250,7 +250,7 @@ def calculate_curr(oe, col, curr_bound=None, t=None):
     if(col.program == 'optics'):
         try:
             calc_properties_optics(col)
-        except TimeoutExpired: # if optics has failed over and over again, bail
+        except MEBSError: # if optics has failed over and over again, bail
             t.timed_out = True
             return 10000 # likely dongle error
     if(col.program == 'mirror'):

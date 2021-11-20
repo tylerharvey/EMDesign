@@ -3,7 +3,7 @@ import os, subprocess
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
-from misc_library import Logger, cd
+from misc_library import Logger, cd, MEBSError
 import asyncio
 import nest_asyncio
 nest_asyncio.apply()
@@ -170,7 +170,7 @@ def calc_properties_optics(col,i=0,max_attempts=3):
             i+=1
             olog.log.error('Optical properties calculation failed. Rerunning.')
             if(i > max_attempts):
-                raise TimeoutExpired
+                raise MEBSError
             else:
                 calc_properties_optics(col,i)
         except AttributeError:

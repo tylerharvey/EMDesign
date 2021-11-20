@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from scipy.interpolate import interp1d
-from misc_library import Logger, cd, check_len
+from misc_library import Logger, cd, check_len, MEBSError
 
 class OpticalColumn:
     '''
@@ -50,7 +50,7 @@ class OpticalColumn:
             default 40.
         timeout : float
             seconds to wait before killing MEBS programs.
-            default 10 minutes.
+            default 3 minutes.
     '''
 
     colwidth = 12 # width of columns in written .dat files
@@ -62,7 +62,7 @@ class OpticalColumn:
     imgcondtext_fmt = Template("{:>${imgcondcolwidth}s}").substitute(imgcondcolwidth=imgcondcolwidth)
     imgcondint_fmt = Template("{:>${imgcondcolwidth}d}").substitute(imgcondcolwidth=imgcondcolwidth)
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
-    timeout = 10*60 # 10 minutes
+    timeout = 3*60 # 3 minutes
 
     def __init__(self, oe=None, obj=None,mir=None,tl_list=None, oe_list=None):
         '''
@@ -100,7 +100,7 @@ class OpticalColumn:
             self.single = True
         self.img_source_offset = 0.0001
 
-    def calc_rays(self,i=0,max_attempts=3):
+    def calc_rays(self,i=0,max_attempts=1):
         '''
         Run after write_raytrace_file() to calculate rays.
 
@@ -108,13 +108,13 @@ class OpticalColumn:
         '''
         with cd(self.dirname):
             try:
-                self.Mlog.log.debug(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
-                                     timeout=self.timeout).stdout.decode('utf-8'))
+              self.Mlog.log.debug(subprocess.run(["soray.exe", self.raytracebasename_noext], stdout=subprocess.PIPE, 
+                                   timeout=self.timeout).stdout.decode('utf-8'))
             except TimeoutExpired:
                 i+=1
-                if(i > max_attempts):
+                if(i >= max_attempts):
                     self.olog.log.critical('Maximum attempts reached.')
-                    raise TimeoutExpired
+                    raise MEBSError
                 else:
                     self.olog.log.info('Ray tracing timed out. Rerunnning.')
                     self.calc_rays(i)
