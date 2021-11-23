@@ -166,7 +166,8 @@ def optimize_broadly_for_retracing(
     if(options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
 
-    change_voltages_and_shape_and_check_retracing(result.x,oe,col,potentials,flag_mask,bounds,None,False)
+    change_voltages_and_shape_and_check_retracing(result.x,oe,col,potentials,flag_mask,
+                                                  shape_data,bounds,None,False,{})
     potentials.voltages[flag_mask] = result.x[shape_data.n_pts:-1]
     img_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
