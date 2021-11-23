@@ -166,15 +166,16 @@ def optimize_broadly_for_retracing(
     if(options.get('return_all') == True):
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
 
+    change_voltages_and_shape_and_check_retracing(result.x,oe,col,potentials,flag_mask,bounds,None,False)
     potentials.voltages[flag_mask] = result.x[shape_data.n_pts:-1]
     img_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
     col.write_mir_img_cond_file(col.mircondfilename, potentials=potentials,
                                 source_pos=img_pos-col.img_source_offset, img_pos=img_pos,
                                 **kwargs)
-    col.write_raytrace_file(col.mircondfilename, potentials=potentials,
-                            source_pos=img_pos-col.img_source_offset, screen_pos=img_pos,
-                            minimum_rays=True, **kwargs)
+    # col.write_raytrace_file(col.mircondfilename, potentials=potentials,
+    #                         source_pos=img_pos-col.img_source_offset, screen_pos=img_pos,
+    #                         minimum_rays=True, **kwargs)
     col.calc_rays()
     if(oe.plot):
         col.plot_rays()
