@@ -130,25 +130,25 @@ class OpticalColumn:
         n_rays = len(zs)
         if(cyl_symm):
             xs, ys = (None,)*n_rays,(None,)*n_rays
-            r_max = max([np.max(r) for r in rs])
+            r_ref = r[0]
         else:
             xs = np.split(x, split_indices)
             ys = np.split(y, split_indices)
-            r_max = max([np.max(y**2+x**2) for x,y in zip(xs,ys)])
-        return zs, rs, xs, ys, n_rays, r_max, cyl_symm
+            r_ref = np.sqrt(x[0]**2+y[0]**2)
+        return zs, rs, xs, ys, n_rays, r_ref, cyl_symm
 
     def evaluate_retracing(self):
         '''
         Determines distance to retracing condition.
         '''
-        zs, rs, xs, ys, n_rays, r_max, cyl_symm = self.load_rays()
+        zs, rs, xs, ys, n_rays, r_ref, cyl_symm = self.load_rays()
         # iterate over rays
         self.ray_dev = np.zeros(n_rays,dtype=float)
         for ray_i in range(n_rays):
-            self.ray_dev[ray_i] = self.retracing_dev_for_single_ray(zs[ray_i], rs[ray_i], r_max, xs[ray_i], ys[ray_i])
+            self.ray_dev[ray_i] = self.retracing_dev_for_single_ray(zs[ray_i], rs[ray_i], r_ref, xs[ray_i], ys[ray_i])
         return self.ray_dev.sum()
 
-    def retracing_dev_for_single_ray(self, z, r, r_max, x=None, y=None):
+    def retracing_dev_for_single_ray(self, z, r, r_ref, x=None, y=None):
        turnaround_index = np.argmin(z)+1
        if(turnaround_index == len(z)):
            return 100 # ray blocked, or something
@@ -169,17 +169,17 @@ class OpticalColumn:
                r_func = interp1d(z_back, r_back)
                # normalize difference in paths by number of steps
                # and maximum r value reached by any ray
-               return (np.abs(((r_func(z_out)-r_out)/len(r_out))/r_max)**2).sum()
+               return (np.abs(((r_func(z_out)-r_out)/len(r_out))/r_ref)**2).sum()
            # this case shouldn't happen, but just in case
            elif(np.min(z_out) <= np.min(z_back) and np.max(z_out) >= np.max(z_back)):
                # need to interpolate longer trajectory
                r_func = interp1d(z_out, r_out)
-               return (np.abs(((r_func(z_back)-r_back)/len(r_back))/r_max)**2).sum()
+               return (np.abs(((r_func(z_back)-r_back)/len(r_back))/r_ref)**2).sum()
            else: # mixed
                r_func = interp1d(z_back, r_back)
                # need to clearly define validity region
                validity = (z_out > np.min(z_back))*(z_out < np.max(z_back))
-               return (np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_max)**2).sum()
+               return (np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_ref)**2).sum()
 
     def plot_rays(self, width=15, height=5, mirror=False, xlim=None, ylim=None, coarse_mesh=True, 
                   boundary_mesh=False, only_radial=True, equal_aspect=True, savefile=''):
