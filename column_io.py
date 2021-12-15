@@ -130,11 +130,11 @@ class OpticalColumn:
         n_rays = len(zs)
         if(cyl_symm):
             xs, ys = (None,)*n_rays,(None,)*n_rays
-            r_ref = r[0]
+            r_ref = max([r[0] for r in rs])
         else:
             xs = np.split(x, split_indices)
             ys = np.split(y, split_indices)
-            r_ref = np.sqrt(x[0]**2+y[0]**2)
+            r_ref = max([np.sqrt(x[0]**2+y[0]**2) for x,y in zip(xs,ys)])
         return zs, rs, xs, ys, n_rays, r_ref, cyl_symm
 
     def evaluate_retracing(self):
