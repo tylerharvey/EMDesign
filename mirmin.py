@@ -9,7 +9,7 @@ from optical_element_io import *
 from column_io import OpticalColumn
 from calculate_optical_properties import calc_properties_mirror
 from automation import optimize_many_shapes
-from misc_library import choose_logger
+from misc_library import choose_logger, strtobool
 import sys
 
 input_file = open(sys.argv[1],'r')
@@ -29,15 +29,15 @@ z_max = float(lines[5])
 r_min = float(lines[6])
 voltages = np.fromstring(lines[7],dtype=float,sep=',')
 flags = lines[8].split(',')
-curved = bool(lines[9])
+curved = strtobool(lines[9])
 end_z_indices_list = None if lines[10] == 'None' else [[1]]
 end_r_indices_list = None if lines[10] == 'None' else np.fromstring(lines[10],dtype=int,sep=',')[np.newaxis,:]
-automate_curvature=bool(lines[11])
+automate_curvature=strtobool(lines[11])
 simplex_scale=float(lines[12])
 source_pos=float(lines[13])
 img_pos=float(lines[14])
 energy=float(lines[15])
-enforce_smoothness=bool(lines[16])
+enforce_smoothness=strtobool(lines[16])
 target_c3=float(lines[17])
 mir = ElecLens(seed_file)
 mir.mirror_type(mirror=True,curved_mirror=curved)

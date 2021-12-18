@@ -3,6 +3,14 @@ import os, sys
 import logging
 from contextlib import contextmanager
 
+def strtobool(string):
+    if(string == 'True' or string == 'true'):
+        return True
+    elif(string == 'False' or string == 'false'):
+        return False
+    else:
+        raise ValueError
+
 # indices is an ordered numpy array of MEBS indices
 # like oe.r_indices
 # index is a MEBS index

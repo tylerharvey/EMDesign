@@ -10,7 +10,7 @@ from optical_element_io import *
 from column_io import OpticalColumn
 from calculate_optical_properties import calc_properties_optics
 from automation import optimize_many_shapes
-from misc_library import choose_logger
+from misc_library import choose_logger, strtobool
 import sys
 
 input_file = open(sys.argv[1],'r')
@@ -31,7 +31,7 @@ simplex_scale = float(lines[6])
 obj_pos=float(lines[7])
 img_pos=float(lines[8])
 energy=float(lines[9])
-enforce_smoothness=bool(lines[10])
+enforce_smoothness=strtobool(lines[10])
 target_c3=float(lines[11])
 obj = StrongMagLens(seed_file)
 obj.write(new_filename)
