@@ -43,7 +43,8 @@ def optimize_broadly_for_retracing(
         r_curv_z_indices_list=None, r_curv_r_indices_list=None, end_z_indices_list=None, end_r_indices_list=None, 
         z_min=None, z_max=None, r_min=0, r_max=None, breakdown_field=10e3, 
         options={'adaptive':True,'fatol':0.00001,'disp':True,'return_all':True}, enforce_smoothness=False,
-        simplex_scale=4, curve_scale=0.05, voltage_logscale=2, max_r_to_edit=None, **kwargs):
+        simplex_scale=4, curve_scale=0.05, voltage_logscale=2, max_r_to_edit=None, optimize_end_voltage=False,
+        end_voltage_bounds=None, **kwargs):
     '''
     Automated optimization of any electrode shape, electrode voltages,
     and the image position for ray-retracing. Shape optimization is very
@@ -118,6 +119,8 @@ def optimize_broadly_for_retracing(
             used to pass additional kwargs to write_raytrace_file().
 
     '''
+    if(end_voltage_bounds == None and optimize_end_voltage):
+        end_voltage_bounds = [-1000,-50]
     options_mutable = options.copy()
 
     initial_shape, bounds, shape_data = prepare_shapes(
@@ -129,10 +132,17 @@ def optimize_broadly_for_retracing(
     potentials.voltages = np.array(potentials.voltages) 
     flag_mask = np.array(potentials.flags) != 'f'
     voltages = potentials.voltages[flag_mask]
+    if(optimize_end_voltage):
+        end_voltage = potentials.voltages[0]
+        if(potentials.voltages[0] != potentials.voltages[1]):
+            raise ValueError('End voltages not equal and cannot be optimized by existing routine.')
 
     img_pos_bounds = determine_img_pos_limits(oe)
 
-    initial_parameters = initial_shape+voltages.tolist() + [img_pos]
+    if(optimize_end_voltage):
+        initial_parameters = initial_shape + [end_voltage] + voltages.tolist() + [img_pos] 
+    else: 
+        initial_parameters = initial_shape + voltages.tolist() + [img_pos]
     N = len(initial_parameters)
     
     # generate shape simplex
@@ -142,23 +152,29 @@ def optimize_broadly_for_retracing(
             breakdown_field=breakdown_field, scale=simplex_scale, curve_scale=curve_scale, 
             enforce_smoothness=enforce_smoothness, adaptive=True, N=N)
 
-     
-
     rng = np.random.default_rng()
     voltage_simplex = np.zeros((N+1,len(voltages)), dtype=float)
     img_pos_simplex = np.zeros((N+1,1), dtype=float)
+    if(optimize_end_voltage):
+        end_voltage_simplex = np.zeros((N+1,1),dtype=float)
     for i in range(N+1):
         voltage_simplex[i] = np.exp(rng.normal(np.log(voltages-voltages.min()+1000), voltage_logscale)) \
                              + voltages.min()-1000
         img_pos_simplex[i,:] = rng.uniform(*img_pos_bounds)
+        if(optimize_end_voltage):
+            end_voltage_simplex[i,:] = rng.uniform(*end_voltage_bounds)
 
-    options_mutable['initial_simplex'][:,shape_data.n_pts:-1] = voltage_simplex
+    if(optimize_end_voltage):
+        options_mutable['initial_simplex'][:,shape_data.n_pts:shape_data.n_pts+1] = end_voltage_simplex
+        options_mutable['initial_simplex'][:,shape_data.n_pts+1:-1] = voltage_simplex
+    else:
+        options_mutable['initial_simplex'][:,shape_data.n_pts:-1] = voltage_simplex
     options_mutable['initial_simplex'][:,-1:] = img_pos_simplex
 
     oe.automated = True
     result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
                       args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, 
-                            enforce_smoothness, kwargs), 
+                            enforce_smoothness, optimize_end_voltage, kwargs), 
                       method='Nelder-Mead', options=options_mutable)
     ilog = Logger('internal')
     ilog.log.debug(f'Optimize {result=}')
@@ -167,8 +183,12 @@ def optimize_broadly_for_retracing(
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
 
     change_voltages_and_shape_and_check_retracing(result.x,oe,col,potentials,flag_mask,
-                                                  shape_data,bounds,None,False,kwargs)
-    potentials.voltages[flag_mask] = result.x[shape_data.n_pts:-1]
+                                                  shape_data,bounds,None,False,optimize_end_voltage,kwargs)
+    if(optimize_end_voltage):
+       potentials.voltages[:2] = result.x[shape_data.n_pts:shape_data.n_pts+1]
+       potentials.voltages[flag_mask] = result.x[shape_data.n_pts+1:-1]
+    else:
+       potentials.voltages[flag_mask] = result.x[shape_data.n_pts:-1]
     img_pos = result.x[-1]
     potentials.voltages = potentials.voltages.tolist()
     col.write_mir_img_cond_file(col.mircondfilename, potentials=potentials,

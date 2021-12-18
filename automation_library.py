@@ -37,8 +37,12 @@ def change_voltages_and_check_retracing(voltages_and_plane, col, potentials, fla
 
 def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potentials, flag_mask,
                                                   shape_data, bounds, breakdown_field, enforce_smoothness, 
-                                                  kwargs):
-    potentials.voltages[flag_mask] = parameters[shape_data.n_pts:-1]
+                                                  optimize_end_voltage, kwargs):
+    if(optimize_end_voltage):
+        potentials.voltages[:2] = parameters[shape_data.n_pts:shape_data.n_pts+1]
+        potentials.voltages[flag_mask] = parameters[shape_data.n_pts+1:-1]
+    else:
+        potentials.voltages[flag_mask] = parameters[shape_data.n_pts:-1]
     img_pos = parameters[-1]
     if(shape_data.n_pts and \
        change_n_quads_and_check(parameters[:shape_data.n_pts], oe, shape_data, enforce_bounds=True, 
