@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, subprocess, shutil
+import re
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
@@ -237,6 +238,12 @@ class OpticalElement:
 
         self.Mlog = Logger('MEBS')
         self.olog = Logger('output')
+        self.coord_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
+        self.curr_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
+        self.field_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
+        self.rel_perm_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
+        self.voltage_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
+        
         self.so=so
         self.mirror = False
         self.curved_mirror = False
@@ -1227,6 +1234,24 @@ class ElecLens(OpticalElement):
     def is_field_too_high(self):
         _,_,shape_data = prepare_shapes(self,self.dielectric_z_indices+self.electrode_z_indices,self.dielectric_r_indices+self.electrode_r_indices)
         return voltage_and_curr_check(self,shape_data=shape_data)
+
+def parse_potentials_string(split_string):
+    '''
+    Takes in a pre-split potentaials string and outputs voltages and flags.
+
+    Pre-split string is a list like ['0f','100v1','500v2'] formed by string.split().
+    
+    Returns two lists, voltages and flags, where voltages is a list of float voltages,
+    and flags is a list of string flags.
+    '''
+
+    voltages = []
+    flags = []
+    for electrode in split_string:
+        voltage, flag, _ = re.split('([vVfF]\w*)', electrode) # splits at v or f, has an empty remainder
+        voltages.append(float(voltage))
+        flags.append(flag)
+    return voltages, flags
 
 
 class MirPotentials:

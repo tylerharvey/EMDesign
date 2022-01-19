@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
 from scipy.interpolate import interp1d
+from optical_element_io import parse_potentials_string, ElecLens, StrongMagLens, MirPotentials
 from misc_library import Logger, cd, check_len, MEBSError
 
 class OpticalColumn:
@@ -64,7 +65,23 @@ class OpticalColumn:
     rfloat_fmt = Template("{:>${imgcondcolwidth}.${precision}g}")
     timeout = 3*60 # 3 minutes
 
-    def __init__(self, oe=None, obj=None,mir=None,tl_list=None, oe_list=None):
+    source_parameters = dict.fromkeys(['position','shape','size','intensity distribution','angular shape',
+                         'half angle','angular distribution','beam energy','energy width parameter',
+                         'energy distribution','beam current'])
+    oe_parameters = dict.fromkeys(['file','type','position','size','potentials'])
+    imgplane_parameters = dict.fromkeys(['position'])
+    screen_parameters = dict.fromkeys(['position'])
+    particle_parameters = dict.fromkeys(['type','charge','mass'])
+    simulation_parameters = dict.fromkeys(['initial conditions','particles/bunch','bunches','seed',
+                             'error bound per step','paraxial ray method','order','coulomb interactions',
+                             'simulation method','tree code parameter','focus mode','interactive',
+                             'save trajectories'])
+    mirror_object_parameters = dict.fromkeys(['position (mm)','beam energy (ev)','alpha (mrad)','alpha values','azimuth values',
+                                'x size (mm)','y size (mm)'])
+    mirror_screen_parameters = dict.fromkeys(['position (mm)'])
+    turning_points_parameters = dict.fromkeys(['position'])
+
+    def __init__(self, oe=None, obj=None,mir=None,tl_list=None, oe_list=None, filename=None):
         '''
         Parameters:
             oe : OpticalElement object
@@ -74,6 +91,8 @@ class OpticalColumn:
         self.Mlog = Logger('MEBS')
         self.olog = Logger('output')
         self.ilog = Logger('internal')
+        if(filename):
+            self.read(filename)
         if(oe == None and oe_list == None):
             self.obj = obj
             self.mir = mir
@@ -83,10 +102,13 @@ class OpticalColumn:
                 self.oe_list.append(obj)
             if(tl_list):
                 self.oe_list.extend(tl_list)
+                self.oe = tl_list[0]
             if(mir):
                 self.oe_list.append(mir)
-            self.oe = tl_list[0]
-            self.dirname = self.oe.dirname
+            try:
+                self.dirname = self.oe.dirname
+            except:
+                pass
             self.single = False
         elif(oe_list):
             self.oe_list = oe_list
@@ -262,7 +284,7 @@ class OpticalColumn:
             self.mircondfilename, source_pos=self.source_pos, source_size=self.source_size, semiangle=self.semiangle, 
             energy=self.energy, initial_direction=self.initial_direction, lens_type=self.lens_type, 
             lens_pos=self.lens_pos, lens_excitation=self.lens_excitation, excitation_flag=self.excitation_flag, 
-            potentials=self.potentials, screen_pos=self.screen_pos)
+            potentials=self.potentials, screen_pos=self.screen_pos, minimum_rays=True)
 
         self.calc_rays()
 
@@ -480,13 +502,130 @@ class OpticalColumn:
         self.imgcondfilename = imgcondfilename
         self.imgcondbasename_noext = os.path.splitext(os.path.basename(imgcondfilename))[0] 
 
+    def read_mir_img_cond_file(self, mircondfilename, write_safe=True):
+        self.program = 'mirror'
+        self.mircondfilename = mircondfilename
+        self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
+        self.dirname = os.path.dirname(mircondfilename)
+        f = open(mircondfilename,'r') 
+        if(write_safe):
+            # rename this to avoid overwriting anything in the future
+            self.mircondbasename_noext += '_test'
+            self.mircondfilename = os.path.splitext(mircondfilename)[0]+'_test.dat'
+        self.infile = list(f)
+
+        self.mir_cond_title = self.infile[0].strip('\n')
+        line_num_source = 2
+        line_num = self.read_section(line_num_source,'source',self.source_parameters)
+        oe_types = ['lens','dipole','quadrupole','hexapole',
+                    'octopole','decapole','dodecapole']
+        self.oe_list = []
+        while(self.infile[line_num].strip().lower() in oe_types):
+            line_num = self.read_oe(line_num)
+            oe_fitname = self.oe_parameters['file']
+            oe_basename_noext = os.path.splitext(os.path.basename(oe_fitname))[0]
+            oe_filename = os.path.join(self.dirname,oe_basename_noext+'.dat')
+            oe_lens_type = self.oe_parameters['type']
+            if(oe_lens_type == 'electrostatic'):
+                oe = ElecLens(oe_filename)
+            elif(oe_lens_type == 'magnetic'):
+                oe = StrongMagLens(oe_filename)
+            else:
+                raise ValueError(f'Lens type {oe.lens_type} not recognized.')
+            oe.lens_type = oe_lens_type
+            oe.lens_pos = float(self.oe_parameters['position'])
+            oe.lens_scale = float(self.oe_parameters['size'])
+            oe.potentials = MirPotentials(oe,*self.oe_parameters['potentials'])
+            self.oe_list.append(oe)
+            self.oe = oe
+        if(len(self.oe_list) == 1):
+            self.lens_type = oe.lens_type
+            self.lens_pos = oe.lens_pos
+            self.lens_scale = oe.lens_scale
+            self.potentials = oe.potentials
+            self.single = True
+
+        line_num = self.read_section(line_num,'gaussian image plane',self.imgplane_parameters)
+        line_num = self.read_section(line_num,'screen',self.screen_parameters)
+        line_num = self.read_section(line_num,'particles',self.particle_parameters)
+        line_num = self.read_section(line_num,'simulation parameters',self.simulation_parameters)
+        line_num = self.read_section(line_num,'mirror object',self.mirror_object_parameters)
+        line_num = self.read_section(line_num,'mirror screen',self.mirror_screen_parameters)
+        line_num = self.read_section(line_num,'turning points guideline',self.turning_points_parameters)
+
+        # for raytracing
+        self.source_pos = float(self.source_parameters['position'])
+        self.source_size = float(self.source_parameters['size'])
+        self.semiangle = float(self.source_parameters['half angle'])
+        self.energy = float(self.source_parameters['beam energy'])
+        self.energy_negative = self.energy < 0
+        self.energy = abs(self.energy)
+        self.initial_direction=180 if self.energy_negative else 0
+        self.screen_pos = float(self.screen_parameters['position'])
+        self.lens_excitation = None
+        self.excitation_flag = None
+        # for generating new column files
+        self.reverse_dir = True if self.energy_negative else False
+        self.img_pos = float(self.imgplane_parameters['position']) 
+        self.intensity_dist = self.source_parameters['intensity distribution']
+        self.ang_shape = self.source_parameters['angular shape']
+        self.ang_dist = self.source_parameters['angular distribution']
+        self.energy_width = float(self.source_parameters['energy width parameter'])
+        self.energy_dist = self.source_parameters['energy distribution']
+        self.ray_method = self.simulation_parameters['paraxial ray method']
+        self.order = int(self.simulation_parameters['order'])
+        self.focus_mode = self.simulation_parameters['focus mode']
+        self.interactive = self.simulation_parameters['interactive']
+        self.obj_pos = float(self.mirror_object_parameters['position (mm)'])
+        self.obj_semiangle = float(self.mirror_object_parameters['alpha (mrad)'])
+        self.x_size = float(self.mirror_object_parameters['x size (mm)'])
+        self.y_size = float(self.mirror_object_parameters['y size (mm)'])
+        self.mir_screen_pos = float(self.mirror_screen_parameters['position (mm)'])
+        self.turning_point = float(self.turning_points_parameters['position'])
+
+    def read_section(self,line_num,section,parameters):
+        if(self.infile[line_num].strip().lower() != section):
+            raise ValueError(f'Unexpected string on line {line_num}: \n'
+                             f'Expected {section}; got {self.infile[line_num].strip()}')
+        line_num += 1
+        while(line_num < len(self.infile) and self.infile[line_num].isspace() != True):
+            line_split = self.infile[line_num].split()
+            parameter_name = ' '.join(line_split[:-1]).lower() 
+            if(parameter_name in parameters):
+                parameters[parameter_name] = line_split[-1]
+            else:
+                raise ValueError(f'Parameter {parameter_name} not a recognized'
+                                  ' parameter; possibly not implemented yet.')
+            line_num += 1
+        line_num += 1 # space after section
+        return line_num
+
+    def read_oe(self,line_num):
+        if(self.infile[line_num].strip().lower() != 'lens'):
+            raise NotImplementedError
+        line_num += 1
+        while(self.infile[line_num].isspace() != True):
+            line_split = self.infile[line_num].split()
+            parameter_name = ' '.join(line_split[:-1]).lower() 
+            if(parameter_name in self.oe_parameters):
+                self.oe_parameters[parameter_name] = line_split[-1]
+            elif(line_split[0].lower() in self.oe_parameters):
+                self.oe_parameters[line_split[0].lower()] = parse_potentials_string(line_split[1:])
+            else:
+                raise ValueError(f'Parameter {parameter_name} not a recognized'
+                                  ' oe parameter; possibly not implemented yet.')
+            line_num += 1
+        line_num += 1 # space after source section
+        return line_num
+    
+
     def write_mir_img_cond_file(self, mircondfilename, source_pos=90, source_shape='ROUND', source_size=200, 
                                 intensity_dist='UNIFORM', ang_shape='ROUND', semiangle=10, ang_dist='UNIFORM', 
                                 energy=200000, energy_width=1, energy_dist='Gaussian', lens_type='electrostatic', 
                                 lens_pos=0, lens_scale=1, lens_excitation=None, excitation_flag=None, 
                                 potentials=None, ray_method="R", order=3, focus_mode="AUTO", img_pos=95, 
                                 screen_pos=None, mir_screen_pos=None, save_trj=True, obj_pos=None, obj_semiangle=None, 
-                                x_size=0.1, y_size=0.1, reverse_dir=True, turning_point=5, precision=6):
+                                x_size=0.1, y_size=0.1, reverse_dir=True, turning_point=5, precision=8):
         '''
         Writes optical imaging conditions file for MIRROR. Must be run before
         calc_properties_mirror(). 
@@ -676,6 +815,9 @@ class OpticalColumn:
             else:
                 raise ValueError('No potentials or lens excitation defined!')
         else:
+            raise NotImplementedError
+            # these oe attributes may not be defined anywhere
+            # only read_mir_img_cond_file defines them currently
             for oe in self.oe_list:
                 cf.write("\nLENS\n")
                 cf.write(self.imgcondsubprop_fmt.format("File")+self.imgcondtext_fmt.format(oe.fitname)+"\n")
