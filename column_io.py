@@ -1,4 +1,4 @@
-import os, subprocess 
+import os, subprocess, shutil
 from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
@@ -512,6 +512,7 @@ class OpticalColumn:
             # rename this to avoid overwriting anything in the future
             self.mircondbasename_noext += '_test'
             self.mircondfilename = os.path.splitext(mircondfilename)[0]+'_test.dat'
+            shutil.copyfile(mircondfilename,os.path.join(self.dirname,self.mircondfilename))
         self.infile = list(f)
 
         self.mir_cond_title = self.infile[0].strip('\n')
