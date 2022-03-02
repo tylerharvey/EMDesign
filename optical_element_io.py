@@ -238,7 +238,7 @@ class OpticalElement:
 
         self.Mlog = Logger('MEBS')
         self.olog = Logger('output')
-        self.coord_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
+        self.coord_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=10)
         self.curr_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
         self.field_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
         self.rel_perm_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
@@ -364,7 +364,7 @@ class OpticalElement:
             line_num+=1
         return line_num+1 # start of next block
     
-    def write(self, outfilename, title=None, coord_precision=6, curr_precision=6, 
+    def write(self, outfilename, title=None, coord_precision=10, curr_precision=6, 
               field_precision=6, rel_perm_precision=6, voltage_precision=6):
         if not title:
             title = self.title

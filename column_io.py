@@ -291,7 +291,7 @@ class OpticalColumn:
     def write_raytrace_file(self, mircondfilename, source_pos=90, source_size=200, semiangle=10, energy=200000, 
                             initial_direction=180, lens_type='Electrostatic', lens_pos=0, lens_excitation=None, 
                             excitation_flag=None, potentials=None, screen_pos=95, relativity=False, cyl_symm=True, 
-                            r_samples=3, alpha_samples=3, minimum_rays=False, precision=8, n_equipotentials=50):
+                            r_samples=3, alpha_samples=3, minimum_rays=False, precision=10, n_equipotentials=50):
         '''
         Creates an input file for SORAY.exe. Primarily for visualizing columns
         implemented in MIRROR. All physical parameters have same name, units
@@ -626,7 +626,7 @@ class OpticalColumn:
                                 lens_pos=0, lens_scale=1, lens_excitation=None, excitation_flag=None, 
                                 potentials=None, ray_method="R", order=3, focus_mode="AUTO", img_pos=95, 
                                 screen_pos=None, mir_screen_pos=None, save_trj=True, obj_pos=None, obj_semiangle=None, 
-                                x_size=0.1, y_size=0.1, reverse_dir=True, turning_point=5, precision=8):
+                                x_size=0.1, y_size=0.1, reverse_dir=True, turning_point=5, precision=10):
         '''
         Writes optical imaging conditions file for MIRROR. Must be run before
         calc_properties_mirror(). 
