@@ -54,7 +54,7 @@ class OpticalColumn:
             default 3 minutes.
     '''
 
-    colwidth = 14 # width of columns in written .dat files
+    colwidth = 12 # width of columns in written .dat files
     int_fmt = Template("{:${colwidth}d}").substitute(colwidth=colwidth)
     float_fmt = Template("{:${colwidth}.${precision}g}")
     imgcondcolwidth = 40
