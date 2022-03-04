@@ -44,7 +44,7 @@ def index_array_from_list(index_list):
 
 def check_len(string, colwidth):
     if(len(string.strip()) >= colwidth):
-        raise ValueError(f'Error: zero space between columns. Value: {string} with length {len(string)}, while column width is {self.colwidth}. Increase column width and rerun.')
+        raise ValueError(f'Error: zero space between columns. Value: {string} with length {len(string)}, while column width is {colwidth}. Increase column width and rerun.')
     else:
         return string
 
