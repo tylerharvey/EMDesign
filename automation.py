@@ -137,7 +137,7 @@ def optimize_broadly_for_retracing(
         if(potentials.voltages[0] != potentials.voltages[1]):
             raise ValueError('End voltages not equal and cannot be optimized by existing routine.')
 
-    img_pos_bounds = determine_img_pos_limits(oe)
+    img_pos_soft_bounds, img_pos_hard_bounds = determine_img_pos_limits(oe)
 
     if(optimize_end_voltage):
         initial_parameters = initial_shape + [end_voltage] + voltages.tolist() + [img_pos] 
@@ -160,7 +160,7 @@ def optimize_broadly_for_retracing(
     for i in range(N+1):
         voltage_simplex[i] = np.exp(rng.normal(np.log(voltages-voltages.min()+1000), voltage_logscale)) \
                              + voltages.min()-1000
-        img_pos_simplex[i,:] = rng.uniform(*img_pos_bounds)
+        img_pos_simplex[i,:] = rng.uniform(*img_pos_hard_bounds)
         if(optimize_end_voltage):
             end_voltage_simplex[i,:] = rng.uniform(*end_voltage_bounds)
 
@@ -173,8 +173,8 @@ def optimize_broadly_for_retracing(
 
     oe.automated = True
     result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
-                      args=(oe, col, potentials, flag_mask, shape_data, bounds, breakdown_field, 
-                            enforce_smoothness, optimize_end_voltage, kwargs), 
+                      args=(oe, col, potentials, flag_mask, shape_data, bounds, img_pos_soft_bounds, 
+                            breakdown_field, enforce_smoothness, optimize_end_voltage, kwargs), 
                       method='Nelder-Mead', options=options_mutable)
     ilog = Logger('internal')
     ilog.log.debug(f'Optimize {result=}')
@@ -183,7 +183,8 @@ def optimize_broadly_for_retracing(
         np.save(oe.filename_noext+'_all_solns', result['allvecs'])
 
     change_voltages_and_shape_and_check_retracing(result.x,oe,col,potentials,flag_mask,
-                                                  shape_data,bounds,None,False,optimize_end_voltage,kwargs)
+                                                  shape_data,bounds, img_pos_soft_bounds,
+                                                  None,False,optimize_end_voltage,kwargs)
     if(optimize_end_voltage):
        potentials.voltages[:2] = result.x[shape_data.n_pts:shape_data.n_pts+1]
        potentials.voltages[flag_mask] = result.x[shape_data.n_pts+1:-1]

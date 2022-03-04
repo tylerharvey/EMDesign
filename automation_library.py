@@ -36,8 +36,8 @@ def change_voltages_and_check_retracing(voltages_and_plane, col, potentials, fla
     return retracing
 
 def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potentials, flag_mask,
-                                                  shape_data, bounds, breakdown_field, enforce_smoothness, 
-                                                  optimize_end_voltage, kwargs):
+                                                  shape_data, bounds, img_pos_soft_bounds, breakdown_field, 
+                                                  enforce_smoothness, optimize_end_voltage, kwargs):
     if(optimize_end_voltage):
         potentials.voltages[:2] = parameters[shape_data.n_pts:shape_data.n_pts+1]
         potentials.voltages[flag_mask] = parameters[shape_data.n_pts+1:-1]
@@ -52,8 +52,13 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
 
     oe.write(oe.filename)
     oe.calc_field()
-    col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset, 
-                            screen_pos=img_pos, minimum_rays=True,**kwargs)
+    if(img_pos < img_pos_soft_bounds[0]):
+        col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset, 
+                                screen_pos=img_pos, minimum_rays=True, project_rays=True, ref_pos=img_pos_soft_bounds[0], 
+                                **kwargs)
+    else:
+        col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset, 
+                                screen_pos=img_pos, minimum_rays=True, **kwargs)
     ilog = Logger('internal')
     try:
         col.calc_rays()
@@ -282,8 +287,9 @@ def calculate_curr(oe, col, curr_bound=None, t=None):
 def determine_img_pos_limits(oe):
     quad_z_coords = oe.z[oe.retrieve_edge_points(oe.electrode_z_indices, oe.electrode_r_indices, True)]
     quad_z_min, quad_z_max = quad_z_coords.min(), quad_z_coords.max()
-    pad = (quad_z_max-quad_z_min)*0.1
-    return quad_z_max+pad, oe.z.max()
+    pad = (quad_z_max-quad_z_min)*0.15
+    tol = (quad_z_max-quad_z_min)*0.3
+    return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z_max)
 
 def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None, 
                    z_curv_z_indices_list=None, z_curv_r_indices_list=None, 

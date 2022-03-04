@@ -238,7 +238,7 @@ class OpticalElement:
 
         self.Mlog = Logger('MEBS')
         self.olog = Logger('output')
-        self.coord_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=10)
+        self.coord_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
         self.curr_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
         self.field_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)
         self.rel_perm_fmt = self.float_fmt.substitute(colwidth=self.colwidth,precision=6)

@@ -54,7 +54,7 @@ class OpticalColumn:
             default 3 minutes.
     '''
 
-    colwidth = 12 # width of columns in written .dat files
+    colwidth = 14 # width of columns in written .dat files
     int_fmt = Template("{:${colwidth}d}").substitute(colwidth=colwidth)
     float_fmt = Template("{:${colwidth}.${precision}g}")
     imgcondcolwidth = 40
@@ -120,7 +120,7 @@ class OpticalColumn:
             self.oe_list = [oe] 
             self.oe = oe 
             self.single = True
-        self.img_source_offset = 0.0001
+        self.img_source_offset = 0.01
 
     def calc_rays(self,i=0,max_attempts=1):
         '''
@@ -291,7 +291,8 @@ class OpticalColumn:
     def write_raytrace_file(self, mircondfilename, source_pos=90, source_size=200, semiangle=10, energy=200000, 
                             initial_direction=180, lens_type='Electrostatic', lens_pos=0, lens_excitation=None, 
                             excitation_flag=None, potentials=None, screen_pos=95, relativity=False, cyl_symm=True, 
-                            r_samples=3, alpha_samples=3, minimum_rays=False, precision=10, n_equipotentials=50):
+                            r_samples=3, alpha_samples=3, minimum_rays=False,  project_rays=False, ref_pos=None,
+                            precision=6, n_equipotentials=50):
         '''
         Creates an input file for SORAY.exe. Primarily for visualizing columns
         implemented in MIRROR. All physical parameters have same name, units
@@ -374,6 +375,8 @@ class OpticalColumn:
                 Default 50.
         '''
         if(minimum_rays == False):
+            if(project_rays == True):
+                raise NotImplementedError
             # SORAY uses mm
             x_positions = np.linspace(-source_size/2/1000,source_size/2/1000,r_samples,endpoint=True)
             if(cyl_symm):
@@ -421,7 +424,8 @@ class OpticalColumn:
 
         cf.write('\n')
         cf.write(self.imgcondsubprop_fmt.format("Time step factor")+self.mircondfloat_fmt.format(0.1)+"\n")
-        cf.write(self.imgcondsubprop_fmt.format("Screen plane")+self.mircondfloat_fmt.format(screen_pos)+"\n")
+        proj_screen_pos = ref_pos if project_rays else screen_pos
+        cf.write(self.imgcondsubprop_fmt.format("Screen plane")+self.mircondfloat_fmt.format(proj_screen_pos)+"\n")
         relativity_str = 'on' if relativity else 'off'
         cf.write(self.imgcondsubprop_fmt.format("Relativity")+self.imgcondtext_fmt.format(relativity_str)+"\n")
         cf.write(self.imgcondsubprop_fmt.format("Save rays")+self.imgcondtext_fmt.format('on')+"\n")
@@ -429,11 +433,13 @@ class OpticalColumn:
         cf.write('\nInitial ray conditions\n')
         rayfloat_fmt = self.float_fmt.substitute(colwidth=self.colwidth, precision=precision)
         if(minimum_rays):
-            for x,y,alpha in zip([source_size/2/1000,0],[0,0],
+            x_0 = (source_pos-ref_pos)*np.tan(-semiangle/1000) if project_rays else 0
+            proj_source_pos = ref_pos - self.img_source_offset if project_rays else source_pos
+            for x,y,alpha in zip([source_size/2/1000,x_0],[0,0], #TEST
                                  [initial_direction,initial_direction+semiangle*180/np.pi/1000]):
                 cf.write(check_len(rayfloat_fmt.format(x), self.colwidth)+
                          check_len(rayfloat_fmt.format(y), self.colwidth)+
-                         check_len(rayfloat_fmt.format(source_pos), self.colwidth)+
+                         check_len(rayfloat_fmt.format(proj_source_pos), self.colwidth)+
                          check_len(rayfloat_fmt.format(energy), self.colwidth)+
                          check_len(rayfloat_fmt.format(alpha), self.colwidth)+
                          check_len(rayfloat_fmt.format(0), self.colwidth)+ # azimuthal angle
@@ -626,7 +632,7 @@ class OpticalColumn:
                                 lens_pos=0, lens_scale=1, lens_excitation=None, excitation_flag=None, 
                                 potentials=None, ray_method="R", order=3, focus_mode="AUTO", img_pos=95, 
                                 screen_pos=None, mir_screen_pos=None, save_trj=True, obj_pos=None, obj_semiangle=None, 
-                                x_size=0.1, y_size=0.1, reverse_dir=True, turning_point=5, precision=10):
+                                x_size=0.1, y_size=0.1, reverse_dir=True, turning_point=5, precision=6):
         '''
         Writes optical imaging conditions file for MIRROR. Must be run before
         calc_properties_mirror(). 
