@@ -435,7 +435,7 @@ class OpticalColumn:
         if(minimum_rays):
             x_0 = (source_pos-ref_pos)*np.tan(-semiangle/1000) if project_rays else 0
             proj_source_pos = ref_pos - self.img_source_offset if project_rays else source_pos
-            for x,y,alpha in zip([source_size/2/1000,x_0],[0,0], #TEST
+            for x,y,alpha in zip([source_size/2/1000,x_0],[0,0], 
                                  [initial_direction,initial_direction+semiangle*180/np.pi/1000]):
                 cf.write(check_len(rayfloat_fmt.format(x), self.colwidth)+
                          check_len(rayfloat_fmt.format(y), self.colwidth)+

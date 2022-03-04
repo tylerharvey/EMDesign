@@ -288,8 +288,8 @@ def determine_img_pos_limits(oe):
     quad_z_coords = oe.z[oe.retrieve_edge_points(oe.electrode_z_indices, oe.electrode_r_indices, True)]
     quad_z_min, quad_z_max = quad_z_coords.min(), quad_z_coords.max()
     pad = (quad_z_max-quad_z_min)*0.15
-    tol = (quad_z_max-quad_z_min)*0.3
-    return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z_max)
+    tol = (quad_z_max-quad_z_min)*0.6
+    return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z.max())
 
 def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None, 
                    z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
