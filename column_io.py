@@ -112,7 +112,7 @@ class OpticalColumn:
             self.single = False
         elif(oe_list):
             self.oe_list = oe_list
-            self.oe = tl_list[0]
+            self.oe = oe_list[0]
             self.dirname = self.oe.dirname
             self.single = False
         else:
@@ -328,7 +328,7 @@ class OpticalColumn:
             lens_pos : float
                 Lens z position (mm). 
                 Unused for multi-element columns.
-                Default 10. **
+                Default 0. **
             lens_excitation : float
                 Specifies excitation strength of magnetic round lens or
                 magnetic or electric multipole. Units are A-turns for magnetic 
@@ -822,9 +822,6 @@ class OpticalColumn:
             else:
                 raise ValueError('No potentials or lens excitation defined!')
         else:
-            raise NotImplementedError
-            # these oe attributes may not be defined anywhere
-            # only read_mir_img_cond_file defines them currently
             for oe in self.oe_list:
                 cf.write("\nLENS\n")
                 cf.write(self.imgcondsubprop_fmt.format("File")+self.imgcondtext_fmt.format(oe.fitname)+"\n")

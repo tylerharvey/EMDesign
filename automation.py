@@ -137,13 +137,21 @@ def optimize_broadly_for_retracing(
         if(potentials.voltages[0] != potentials.voltages[1]):
             raise ValueError('End voltages not equal and cannot be optimized by existing routine.')
 
-    img_pos_soft_bounds, img_pos_hard_bounds = determine_img_pos_limits(oe)
+    img_pos_soft_bounds, img_pos_hard_bounds = determine_img_pos_limits(oe,col)
 
-    if(optimize_end_voltage):
-        initial_parameters = initial_shape + [end_voltage] + voltages.tolist() + [img_pos] 
-    else: 
-        initial_parameters = initial_shape + voltages.tolist() + [img_pos]
+    # gather positions of all lenses
+    lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,lens_pos)]
+    # exclude mirror, which should be first element in oe_list
+    other_lens_pos_list = lens_pos_list[1:]
+    print(f'lens_pos_list: {lens_pos_list}')
+    initial_parameters = initial_shape + [end_voltage]*optimize_end_voltage + 
+                         voltages.tolist() + [img_pos] + other_lens_pos_list
     N = len(initial_parameters)
+    shape_data.n_end_voltages = 1 if optimize_end_voltage else 0
+    shape_data.n_voltages = len(voltages.tolist())
+    shape_data.n_img_pos = 1
+    shape_data.n_lens_pos = len(other_lens_pos_list)
+
     
     # generate shape simplex
     if(options.get('initial_simplex') is None):
@@ -163,13 +171,27 @@ def optimize_broadly_for_retracing(
         img_pos_simplex[i,:] = rng.uniform(*img_pos_hard_bounds)
         if(optimize_end_voltage):
             end_voltage_simplex[i,:] = rng.uniform(*end_voltage_bounds)
+    if(shape.data.n_lens_pos):
+        lens_pos_simplex = 
 
-    if(optimize_end_voltage):
-        options_mutable['initial_simplex'][:,shape_data.n_pts:shape_data.n_pts+1] = end_voltage_simplex
-        options_mutable['initial_simplex'][:,shape_data.n_pts+1:-1] = voltage_simplex
-    else:
-        options_mutable['initial_simplex'][:,shape_data.n_pts:-1] = voltage_simplex
-    options_mutable['initial_simplex'][:,-1:] = img_pos_simplex
+    index_0 = shape_data.n_pts
+    index_1 = index_0 + shape_data.n_end_voltages 
+    try:
+        options_mutable['initial_simplex'][:,index_0:index_1] = end_voltage_simplex
+    except NameError:
+        pass
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_voltages
+    options_mutable['initial_simplex'][:,index_0:index_1] = voltage_simplex
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_img_pos
+    options_mutable['initial_simplex'][:,index_0:index_1] = img_pos_simplex
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_lens_pos
+    try:
+        options_mutable['initial_simplex'][:,index_0:index_1] = lens_pos_simplex
+    except NameError:
+        pass
 
     oe.automated = True
     result = minimize(change_voltages_and_shape_and_check_retracing, initial_parameters,
@@ -185,13 +207,23 @@ def optimize_broadly_for_retracing(
     change_voltages_and_shape_and_check_retracing(result.x,oe,col,potentials,flag_mask,
                                                   shape_data,bounds, img_pos_soft_bounds,
                                                   None,False,optimize_end_voltage,kwargs)
-    if(optimize_end_voltage):
-       potentials.voltages[:2] = result.x[shape_data.n_pts:shape_data.n_pts+1]
-       potentials.voltages[flag_mask] = result.x[shape_data.n_pts+1:-1]
-    else:
-       potentials.voltages[flag_mask] = result.x[shape_data.n_pts:-1]
-    img_pos = result.x[-1]
+    index_0 = shape_data.n_pts
+    index_1 = index_0 + shape_data.n_end_voltages 
+    potentials.voltages[:2] = result.x[index_0:index_1]
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_voltages
+    potentials.voltages[flag_mask] = result.x[index_0:index_1]
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_img_pos
+    img_pos = result.x[index_0:index_1]
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_lens_pos
+    other_lens_pos_list = result.x[index_0:index_1]
+    for i,oe in enumerate(oe_list[1:]):
+        oe.lens_pos = other_lens_pos_list[i]
+
     potentials.voltages = potentials.voltages.tolist()
+
     col.write_mir_img_cond_file(col.mircondfilename, potentials=potentials,
                                 source_pos=img_pos-col.img_source_offset, img_pos=img_pos,
                                 **kwargs)

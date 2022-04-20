@@ -40,13 +40,27 @@ maxfev=float(lines[14])
 enforce_smoothness=strtobool(lines[15])
 max_r_to_edit =  None if lines[16] == 'None' else float(lines[16])
 optimize_end_voltage = strtobool(lines[17])
-
+i=18
+other_oe_list = []
+while(lines[i]):
+    other_oe_list.append(StrongMagLens(lines[i]))
+    curr_oe = other_oe_list[-1]
+    i+=1
+    curr_oe.lens_pos = float(lines[i])
+    i+=1
+    curr_oe.lens_excitation = float(lines[i])
+    i+=1
 
 mir = ElecLens(seed_file)
 mir.mirror_type(mirror=True,curved_mirror=curved)
 mir.V = voltages
 mir.write(new_filename)
-col = OpticalColumn(mir)
+mir.lens_pos = 0
+if(other_oe_list):
+    oe_list = [mir]+other_oe_list
+    col = OpticalColumn(oe_list)
+else:
+    col = OpticalColumn(mir)
 col.mircondfilename  = mir_img_cond_filename
 z_indices_list = mir.electrode_z_indices if edit_nonend_electrodes else None
 r_indices_list = mir.electrode_r_indices if edit_nonend_electrodes else None

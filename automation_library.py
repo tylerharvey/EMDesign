@@ -38,12 +38,21 @@ def change_voltages_and_check_retracing(voltages_and_plane, col, potentials, fla
 def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potentials, flag_mask,
                                                   shape_data, bounds, img_pos_soft_bounds, breakdown_field, 
                                                   enforce_smoothness, optimize_end_voltage, kwargs):
-    if(optimize_end_voltage):
-        potentials.voltages[:2] = parameters[shape_data.n_pts:shape_data.n_pts+1]
-        potentials.voltages[flag_mask] = parameters[shape_data.n_pts+1:-1]
-    else:
-        potentials.voltages[flag_mask] = parameters[shape_data.n_pts:-1]
-    img_pos = parameters[-1]
+    index_0 = shape_data.n_pts
+    index_1 = index_0 + shape_data.n_end_voltages 
+    potentials.voltages[:2] = parameters[index_0:index_1]
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_voltages
+    potentials.voltages[flag_mask] = parameters[index_0:index_1]
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_img_pos
+    img_pos = parameters[index_0:index_1]
+    index_0 = index_1
+    index_1 = index_0 + shape_data.n_lens_pos
+    other_lens_pos_list = parameters[index_0:index_1]
+    for i,oe in enumerate(oe_list[1:]):
+        oe.lens_pos = other_lens_pos_list[i]
+
     if(shape_data.n_pts and \
        change_n_quads_and_check(parameters[:shape_data.n_pts], oe, shape_data, enforce_bounds=True, 
                                 bounds=bounds, breakdown_field=breakdown_field, 
@@ -284,12 +293,19 @@ def calculate_curr(oe, col, curr_bound=None, t=None):
     ilog.log.debug(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
     return oe.lens_curr/coil_area 
 
-def determine_img_pos_limits(oe):
+def determine_img_pos_limits(oe,col):
     quad_z_coords = oe.z[oe.retrieve_edge_points(oe.electrode_z_indices, oe.electrode_r_indices, True)]
     quad_z_min, quad_z_max = quad_z_coords.min(), quad_z_coords.max()
     pad = (quad_z_max-quad_z_min)*0.15
     tol = (quad_z_max-quad_z_min)*0.6
-    return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z.max())
+    if(len(col.oe_list)>1):
+        lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,lens_pos)]
+        lens_pos_max = max(lens_pos_list)
+        lens_pos_min = min(lens_pos_list)
+        tol = (lens_pos_max-lens_pos_min)*0.1
+        return (lens_pos_max+tol,lens_pos_max+2*(lens_pos_max-lens_pos_min))
+    else:
+        return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z.max())
 
 def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None, 
                    z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
