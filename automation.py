@@ -140,15 +140,15 @@ def optimize_broadly_for_retracing(
     img_pos_soft_bounds, img_pos_hard_bounds = determine_img_pos_limits(oe,col)
 
     # gather positions of all lenses
-    lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,lens_pos)]
+    lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,'lens_pos')]
     # exclude mirror, which should be first element in oe_list
     other_lens_pos_list = lens_pos_list[1:]
-    print(f'lens_pos_list: {lens_pos_list}')
-    initial_parameters = initial_shape + [end_voltage]*optimize_end_voltage + 
+    # print(f'lens_pos_list: {lens_pos_list}')
+    initial_parameters = initial_shape + [end_voltage]*optimize_end_voltage + \
                          voltages.tolist() + [img_pos] + other_lens_pos_list
     N = len(initial_parameters)
     shape_data.n_end_voltages = 1 if optimize_end_voltage else 0
-    shape_data.n_voltages = len(voltages.tolist())
+    shape_data.n_voltages = len(voltages)
     shape_data.n_img_pos = 1
     shape_data.n_lens_pos = len(other_lens_pos_list)
 
@@ -161,18 +161,21 @@ def optimize_broadly_for_retracing(
             enforce_smoothness=enforce_smoothness, adaptive=True, N=N)
 
     rng = np.random.default_rng()
-    voltage_simplex = np.zeros((N+1,len(voltages)), dtype=float)
-    img_pos_simplex = np.zeros((N+1,1), dtype=float)
+    voltage_simplex = np.zeros((N+1,shape_data.n_voltages), dtype=float)
+    img_pos_simplex = np.zeros((N+1,shape_data.n_img_pos), dtype=float)
     if(optimize_end_voltage):
-        end_voltage_simplex = np.zeros((N+1,1),dtype=float)
+        end_voltage_simplex = np.zeros((N+1,shape_data.n_end_voltages),dtype=float)
+    if(shape_data.n_lens_pos):
+        lens_pos_simplex = np.zeros((N+1,shape_data.n_lens_pos),dtype=float)
+        lens_pos_bounds_low,lens_pos_bounds_high = determine_lens_pos_bounds(oe,col)
     for i in range(N+1):
         voltage_simplex[i] = np.exp(rng.normal(np.log(voltages-voltages.min()+1000), voltage_logscale)) \
                              + voltages.min()-1000
         img_pos_simplex[i,:] = rng.uniform(*img_pos_hard_bounds)
         if(optimize_end_voltage):
             end_voltage_simplex[i,:] = rng.uniform(*end_voltage_bounds)
-    if(shape.data.n_lens_pos):
-        lens_pos_simplex = 
+        if(shape_data.n_lens_pos):
+            lens_pos_simplex[i,:] = rng.uniform(lens_pos_bounds_low,lens_pos_bounds_high)
 
     index_0 = shape_data.n_pts
     index_1 = index_0 + shape_data.n_end_voltages 

@@ -299,13 +299,28 @@ def determine_img_pos_limits(oe,col):
     pad = (quad_z_max-quad_z_min)*0.15
     tol = (quad_z_max-quad_z_min)*0.6
     if(len(col.oe_list)>1):
-        lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,lens_pos)]
+        lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,'lens_pos')]
         lens_pos_max = max(lens_pos_list)
         lens_pos_min = min(lens_pos_list)
         tol = (lens_pos_max-lens_pos_min)*0.1
         return (lens_pos_max+tol,lens_pos_max+2*(lens_pos_max-lens_pos_min))
     else:
         return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z.max())
+
+def determine_lens_pos_bounds(oe,col):
+    quad_z_coords = oe.z[oe.retrieve_edge_points(oe.electrode_z_indices, oe.electrode_r_indices, True)]
+    oe_z_max = quad_z_coords.max()
+    lens_pos_list = np.array([oe.lens_pos for oe in col.oe_list if hasattr(oe,'lens_pos')])
+    # assumes lens_pos of oe, first element in col.oe_list, is skipped in optimization
+    lens_pos_diff = np.diff(lens_pos_list)
+    lens_pos_diff.append(lens_pos_diff[-1])
+    lens_pos_diff /= 2
+    lens_pos_lower = lens_pos_list-lens_pos_diff
+    lens_pos_upper = lens_pos_list+lens_pos_diff
+    lens_pos_lower[0] = oe_z_max # hard bound at end of mirror
+    return lens_pos_lower,lens_pos_upper
+
+
 
 def prepare_shapes(oe, z_indices_list, r_indices_list, other_z_indices_list=None, other_r_indices_list=None, 
                    z_curv_z_indices_list=None, z_curv_r_indices_list=None, 
