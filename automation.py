@@ -15,7 +15,8 @@ from automation_library import change_image_plane_and_check_retracing, \
                                change_column_and_calculate_mag, \
                                change_n_quads_and_calculate, \
                                change_n_quads_and_calculate_curr, \
-                               determine_img_pos_limits, \
+                               determine_lens_pos_bounds, \
+                               determine_img_pos_bounds, \
                                generate_initial_simplex, \
                                prepare_shapes, \
                                change_n_quads_and_check, \
@@ -137,7 +138,7 @@ def optimize_broadly_for_retracing(
         if(potentials.voltages[0] != potentials.voltages[1]):
             raise ValueError('End voltages not equal and cannot be optimized by existing routine.')
 
-    img_pos_soft_bounds, img_pos_hard_bounds = determine_img_pos_limits(oe,col)
+    img_pos_soft_bounds, img_pos_hard_bounds = determine_img_pos_bounds(oe,col)
 
     # gather positions of all lenses
     lens_pos_list = [oe.lens_pos for oe in col.oe_list if hasattr(oe,'lens_pos')]
@@ -222,7 +223,7 @@ def optimize_broadly_for_retracing(
     index_0 = index_1
     index_1 = index_0 + shape_data.n_lens_pos
     other_lens_pos_list = result.x[index_0:index_1]
-    for i,oe in enumerate(oe_list[1:]):
+    for i,oe in enumerate(col.oe_list[1:]):
         oe.lens_pos = other_lens_pos_list[i]
 
     potentials.voltages = potentials.voltages.tolist()

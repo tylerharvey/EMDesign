@@ -50,8 +50,8 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     index_0 = index_1
     index_1 = index_0 + shape_data.n_lens_pos
     other_lens_pos_list = parameters[index_0:index_1]
-    for i,oe in enumerate(oe_list[1:]):
-        oe.lens_pos = other_lens_pos_list[i]
+    for i,oe_i in enumerate(col.oe_list[1:]):
+        oe_i.lens_pos = other_lens_pos_list[i]
 
     if(shape_data.n_pts and \
        change_n_quads_and_check(parameters[:shape_data.n_pts], oe, shape_data, enforce_bounds=True, 
@@ -293,7 +293,7 @@ def calculate_curr(oe, col, curr_bound=None, t=None):
     ilog.log.debug(f'{oe.lens_curr=},{coil_area=},{(oe.lens_curr/coil_area)=},{curr_bound=}')
     return oe.lens_curr/coil_area 
 
-def determine_img_pos_limits(oe,col):
+def determine_img_pos_bounds(oe,col):
     quad_z_coords = oe.z[oe.retrieve_edge_points(oe.electrode_z_indices, oe.electrode_r_indices, True)]
     quad_z_min, quad_z_max = quad_z_coords.min(), quad_z_coords.max()
     pad = (quad_z_max-quad_z_min)*0.15
@@ -303,7 +303,7 @@ def determine_img_pos_limits(oe,col):
         lens_pos_max = max(lens_pos_list)
         lens_pos_min = min(lens_pos_list)
         tol = (lens_pos_max-lens_pos_min)*0.1
-        return (lens_pos_max+tol,lens_pos_max+2*(lens_pos_max-lens_pos_min))
+        return (lens_pos_max+tol,lens_pos_max+2*(lens_pos_max-lens_pos_min)),(lens_pos_max+tol,lens_pos_max+2*(lens_pos_max-lens_pos_min))
     else:
         return (quad_z_max+pad, oe.z.max()), (quad_z_max-tol, oe.z.max())
 
@@ -313,12 +313,12 @@ def determine_lens_pos_bounds(oe,col):
     lens_pos_list = np.array([oe.lens_pos for oe in col.oe_list if hasattr(oe,'lens_pos')])
     # assumes lens_pos of oe, first element in col.oe_list, is skipped in optimization
     lens_pos_diff = np.diff(lens_pos_list)
-    lens_pos_diff.append(lens_pos_diff[-1])
+    lens_pos_diff = np.append(lens_pos_diff,lens_pos_diff[-1])
     lens_pos_diff /= 2
     lens_pos_lower = lens_pos_list-lens_pos_diff
     lens_pos_upper = lens_pos_list+lens_pos_diff
-    lens_pos_lower[0] = oe_z_max # hard bound at end of mirror
-    return lens_pos_lower,lens_pos_upper
+    lens_pos_lower[1] = oe_z_max # hard bound at end of mirror
+    return lens_pos_lower[1:],lens_pos_upper[1:] # skip first element
 
 
 
