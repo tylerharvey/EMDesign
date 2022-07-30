@@ -2,10 +2,15 @@
 Script to split and SVG-ize individual elements (e.g. equipotentials, electrodes) of a MEBS HGPL plot.
 Outputted SVGs can be read by Inkscape's import function.
 
+Depends on hpgl2svg from github.com/adelrun/hpgl-to-svg
+
 Run as
 $ python3 split_hpgl.py <hpgl_filename>
 '''
-from hpgl2svg import parse_file
+try:
+    from hpgl2svg import parse_file
+except ModuleNotFoundError:
+    raise ModuleNotFoundError('Add hpgl2svg from github.com/adelrun/hpgl-to-svg to pythonpath.')
 import sys, os, re
 try:
     infile = sys.argv[1]
