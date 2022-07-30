@@ -37,10 +37,12 @@ class OpticalColumn:
         write_raytrace_file
         write_opt_img_cond_file
         write_mir_img_cond_file
+        read_mir_img_cond_file
         read_optical_properties
         read_mir_optical_properties
         calc_rays
         plot_rays
+        evaluate_retracing
 
     Hard-coded attributes:
         colwidth : int
@@ -166,6 +168,8 @@ class OpticalColumn:
     def evaluate_retracing(self):
         '''
         Determines distance to retracing condition.
+
+        Run after self.calc_rays()
         '''
         zs, rs, xs, ys, n_rays, r_ref, cyl_symm = self.load_rays()
         # iterate over rays
@@ -513,6 +517,10 @@ class OpticalColumn:
         self.imgcondbasename_noext = os.path.splitext(os.path.basename(imgcondfilename))[0] 
 
     def read_mir_img_cond_file(self, mircondfilename, write_safe=True):
+        '''
+        Saves values from a mirror imaging conditions file to memory.
+        '''
+
         self.program = 'mirror'
         self.mircondfilename = mircondfilename
         self.mircondbasename_noext = os.path.splitext(os.path.basename(mircondfilename))[0] 
