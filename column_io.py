@@ -142,8 +142,12 @@ class OpticalColumn:
                     self.calc_rays(i)
 
     def load_rays(self):
-        step, z, r, x, y = np.loadtxt(os.path.join(self.dirname,self.raytracebasename_noext+'.raf'), 
-                                      skiprows=8, unpack=True)
+        try:
+            step, z, r, x, y = np.loadtxt(os.path.join(self.dirname,self.raytracebasename_noext+'.raf'), 
+                                          skiprows=8, unpack=True)
+        except StopIteration:
+            self.olog.log.critical('Raytrace file empty.')
+            raise MEBSError
         cyl_symm = True if (y == 0).all() else False
         split_indices = np.squeeze(np.argwhere(step[:-1] > step[1:]), axis=1)+1
         steps = np.split(step, split_indices)
@@ -204,7 +208,7 @@ class OpticalColumn:
                return (np.abs(((r_func(z_out[validity])-r_out[validity])/len(r_out[validity]))/r_ref)**2).sum()
 
     def plot_rays(self, width=15, height=5, mirror=False, xlim=None, ylim=None, coarse_mesh=True, 
-                  boundary_mesh=False, only_radial=True, equal_aspect=True, savefile=''):
+                  boundary_mesh=False, only_radial=True, equal_aspect=True, title=None, savefile=''):
         '''
         Run after calc_rays() to plot rays.
 
@@ -268,7 +272,7 @@ class OpticalColumn:
         else:
             plt.ylabel('x and y (mm)')
             plt.legend()
-        plt.title('Rays')
+        plt.title(title)
         if(xlim is not None):
             plt.xlim(xlim)
         if(ylim is not None):
@@ -420,7 +424,7 @@ class OpticalColumn:
                              self.imgcondtext_fmt.format(oe.potentials.format_noflag())+"\n")
                 else:
                     cf.write(self.imgcondsubprop_fmt.format("Excitation")+
-                             self.imgcondtext_fmt.format(oe.lens_excitation)+"\n")
+                             self.mircondfloat_fmt.format(oe.lens_excitation)+"\n")
 
         cf.write('\n')
         cf.write(self.imgcondsubprop_fmt.format("Time step factor")+self.mircondfloat_fmt.format(0.1)+"\n")

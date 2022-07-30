@@ -46,7 +46,9 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
     potentials.voltages[flag_mask] = parameters[index_0:index_1]
     index_0 = index_1
     index_1 = index_0 + shape_data.n_img_pos
-    img_pos = parameters[index_0:index_1]
+    if(shape_data.n_img_pos != 1):
+        raise NotImplementedError
+    img_pos = parameters[index_0]
     index_0 = index_1
     index_1 = index_0 + shape_data.n_lens_pos
     other_lens_pos_list = parameters[index_0:index_1]
@@ -59,8 +61,11 @@ def change_voltages_and_shape_and_check_retracing(parameters, oe, col, potential
                                 enforce_smoothness=enforce_smoothness)):
         return 100
 
+    oe.potentials = potentials # save potentials for writing with multiple optical elements
+
     oe.write(oe.filename)
-    oe.calc_field()
+    for oe_i in col.oe_list:
+        oe_i.calc_field()
     if(img_pos < img_pos_soft_bounds[0]):
         col.write_raytrace_file(col.mircondfilename, potentials=potentials, source_pos=img_pos-col.img_source_offset, 
                                 screen_pos=img_pos, minimum_rays=True, project_rays=True, ref_pos=img_pos_soft_bounds[0], 
