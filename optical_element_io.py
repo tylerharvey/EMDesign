@@ -600,7 +600,7 @@ class OpticalElement:
 
     # collect all segments in the coarse mesh into a list
     def define_coarse_mesh_segments(self):
-        segments = np.empty(self.z.shape+(2,),dtype=np.object)
+        segments = np.empty(self.z.shape+(2,),dtype=object)
         for i in range(self.z.shape[0]):
             if(self.r[i,0] == self.r[:,0].max()):
                 check_angle = False # don't check for smoothness at the r boundary
