@@ -274,6 +274,9 @@ class OpticalElement:
         line_num = self.read_mesh()
         if(self.so):
             line_num = self.read_curvature(line_num)
+        else:
+            self.z_curv = 0
+            self.r_curv = 0
         self.read_other_blocks(line_num)
         f.close()
         f = None
