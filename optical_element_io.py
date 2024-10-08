@@ -253,6 +253,8 @@ class OpticalElement:
         self.initialize_lists()
         self.plot = plot
         self.automated = False # will be turned on when automation starts
+        self.interpolate_r_in_z = False
+        self.interpolate_z_in_r = False
         if(filename):
             self.read(filename)
             shutil.copyfile(filename, filename+'.bak')
@@ -301,7 +303,12 @@ class OpticalElement:
         line_num+=1 # skip blank line we just found
         z_indices_2 = np.fromstring(self.infile[line_num],dtype=int,sep=' ')
         if(np.array_equal(z_indices_2,self.z_indices) != True):
-            raise ValueError("Read error! z indices read in first and second mesh block not identical!")
+            if(np.array_equal(np.array(z_indices_2)[[0,-1]],self.z_indices[[0,-1]]) == True and 
+                    len(self.z_indices) > len(z_indices_2)): # allow for interpolated coarse mesh
+                self.interpolate_r_in_z = True
+                self.sparse_z_indices = np.array(z_indices_2)
+            else:
+                raise ValueError("Read error! z indices read in first and second mesh block not identical!")
         line_num+=1 # move to r coordinates
         r_indices_2 = []
         while(self.infile[line_num].isspace() != True):
@@ -310,7 +317,23 @@ class OpticalElement:
             line_num+=1
         self.r = np.array(r)
         if(np.array_equal(r_indices,r_indices_2) != True):
-            raise ValueError("Read error! r indices read in first and second mesh block not identical!")
+            if(np.array_equal(np.array(r_indices_2)[[0,-1]],self.r_indices[[0,-1]]) == True and
+                    len(r_indices_2) > len(self.r_indices)):
+                self.interpolate_z_in_r = True
+                self.sparse_r_indices = np.copy(self.r_indices)
+                self.r_indices = np.array(r_indices_2)
+            else:
+                raise ValueError("Read error! r indices read in first and second mesh block not identical!")
+        if(self.interpolate_r_in_z):
+            self.sparse_r = np.copy(self.r)
+            self.r = np.zeros((self.r_indices.shape[0],self.z_indices.shape[0]),dtype=float)
+            for i in range(self.r.shape[0]):
+                self.r[i,:] = np.interp(self.z_indices,self.sparse_z_indices,self.sparse_r[i,:])
+        if(self.interpolate_z_in_r):
+            self.sparse_z = np.copy(self.z)
+            self.z = np.zeros((self.r_indices.shape[0],self.z_indices.shape[0]),dtype=float)
+            for j in range(self.z.shape[1]):
+                self.z[:,j] = np.interp(self.r_indices,self.sparse_r_indices,self.sparse_z[:,j])
         line_num+=1 # skip blank line we just found
         if(self.so == False and 
                 (len(self.z_indices) != 5 and len(np.fromstring(self.infile[line_num],dtype=int,sep=' ')) != 5) or 
@@ -827,7 +850,7 @@ class StrongMagLens(OpticalElement):
         line_num = self.read_mag_mat(line_num)
         line_num = self.read_coil(line_num)
         self.plot_mesh_coarse(quads_on=True) if self.plot else 0
-        while(self.infile[line_num].isspace() != True):
+        while(line_num < len(self.infile) and self.infile[line_num].isspace() != True):
             line_num = self.read_hyst_curve(line_num)
             self.plot_hyst() if self.plot else 0
     
@@ -840,7 +863,7 @@ class StrongMagLens(OpticalElement):
     
     def read_hyst_curve(self, line_num):
         lines = []
-        while(self.infile[line_num].isspace() != True):
+        while(line_num < len(self.infile) and self.infile[line_num].isspace() != True):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,count=2,sep=' '))
             line_num+=1
         lines = np.array(lines)
@@ -1032,7 +1055,7 @@ class WeakMagLens_PP_Region(WeakMagLens):
         
     def read_coil(self, line_num):
         lines = []
-        while(self.infile[line_num].isspace() != True):
+        while(line_num < len(self.infile) and self.infile[line_num].isspace() != True):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,count=2,sep=' '))
             line_num+=1
         lines = np.array(lines)
@@ -1152,7 +1175,7 @@ class ElecLens(OpticalElement):
 
     def read_boundaries(self, line_num):
         lines = []
-        while(self.infile[line_num].isspace() != True):
+        while(line_num < len(self.infile) and self.infile[line_num].isspace() != True):
             lines.append(np.fromstring(self.infile[line_num],dtype=float,sep=' '))
             line_num+=1
         lines = np.array(lines)
