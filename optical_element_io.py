@@ -5,7 +5,7 @@ from subprocess import TimeoutExpired
 import numpy as np
 import matplotlib.pyplot as plt
 from string import Template
-from scipy.interpolate import interp2d
+from scipy.interpolate import interp1d, interp2d
 from shapely.geometry import *
 from misc_library import Logger, \
                          cd, index_array_from_list, np_index, last_np_index, \
@@ -277,7 +277,7 @@ class OpticalElement:
         if(self.so):
             line_num = self.read_curvature(line_num)
         else:
-            self.add_curvature()
+            self.add_curvature(compatibility_mode=True)
         self.read_other_blocks(line_num)
         f.close()
         f = None
@@ -385,6 +385,40 @@ class OpticalElement:
             indices = np.fromstring(self.infile[line_num],dtype=int,count=4,sep=' ')
             z_indices.append(indices[:2])
             r_indices.append(indices[2:4])
+            # if quads are not on coarse mesh, expand coarse mesh
+            for z_index in z_indices[-1]:
+                if(z_index not in self.z_indices and self.so == False):
+                    insert_position = (self.z_indices < z_index).sum()
+                    previous_z_indices = np.copy(self.z_indices)
+                    previous_z = np.copy(self.z)
+                    previous_r = np.copy(self.r)
+                    self.z_indices = np.insert(previous_z_indices,insert_position,z_index)
+                    # could be clearer with interp2d, but would introduce numerical precision issues
+                    self.z = np.insert(previous_z,insert_position,
+                            interp1d(previous_z_indices[insert_position-1:insert_position+1],previous_z[:,insert_position-1:insert_position+1],kind='linear',axis=1)(z_index),
+                            axis=1)
+                    self.r = np.insert(previous_r,insert_position,
+                            interp1d(previous_z_indices[insert_position-1:insert_position+1],previous_r[:,insert_position-1:insert_position+1],kind='linear',axis=1)(z_index),
+                            axis=1)
+                    self.r_curv = np.zeros_like(self.r)
+                    self.z_curv = np.zeros_like(self.z)
+                elif(z_index not in self.z_indices and self.so == True):
+                    raise ValueError('Quads that are not defined on the coarse mesh are not implemented with non-zero curvature')
+            for r_index in r_indices[-1]:
+                if(r_index not in self.r_indices):
+                    insert_position = (self.r_indices < r_index).sum()
+                    previous_r_indices = np.copy(self.r_indices)
+                    previous_z = np.copy(self.z)
+                    previous_r = np.copy(self.r)
+                    self.r_indices = np.insert(previous_r_indices,insert_position,r_index)
+                    self.z = np.insert(previous_z,insert_position,
+                            interp1d(previous_r_indices[insert_position-1:insert_position+1],previous_z[insert_position-1:insert_position+1],kind='linear',axis=0)(r_index),
+                            axis=0)
+                    self.r = np.insert(previous_r,insert_position,
+                            interp1d(previous_r_indices[insert_position-1:insert_position+1],previous_r[insert_position-1:insert_position+1],kind='linear',axis=0)(r_index),
+                            axis=0)
+                    self.r_curv = np.zeros_like(self.r)
+                    self.z_curv = np.zeros_like(self.z)
             quad_property.append(np.fromstring(self.infile[line_num],dtype=property_dtype,count=5,sep=' ')[-1])
             line_num+=1
         return line_num+1 # start of next block
@@ -556,7 +590,7 @@ class OpticalElement:
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
         if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
-            raise ValueError('Quads that are not defined on the coarse mesh are not implemented.')
+            raise NotImplementedError('Quads that are not defined on the coarse mesh are not implemented for second-order files.')
         seg_np_indices = []
         seg_np_indices.append((np.repeat(np_r_indices.min(),len(np_z_indices)),np_z_indices))
         seg_np_indices.append((np_r_indices,np.repeat(np_z_indices.max(),len(np_r_indices))))
@@ -572,7 +606,7 @@ class OpticalElement:
         np_z_indices = np.nonzero((self.z_indices >= z_indices.min())*(self.z_indices <= z_indices.max()))[0]
         np_r_indices = np.nonzero((self.r_indices >= r_indices.min())*(self.r_indices <= r_indices.max()))[0]
         if(len(np_z_indices) == 0 or len(np_r_indices) == 0):
-            raise ValueError('Quads that are not defined on the coarse mesh are not implemented.')
+            raise NotImplementedError('Quads that are not defined on the coarse mesh are not implemented for second-order files.')
         segments = []
         if(not hasattr(self,'coarse_segments')): # REVISIT depending on final usage of this fn 
             self.define_coarse_mesh_segments()
@@ -758,19 +792,25 @@ class OpticalElement:
             self.olog.log.info('No file with name {} found. Run calc_field first.'.format(self.potname))
             raise FileNotFoundError
 
-    def add_curvature(self):
+    def add_curvature(self,compatibility_mode=False):
         '''
         Converts optical element .dat file used for optics into a file 
         compatible with MEBS SOFEM by adding curvature coordinates.
+
+        By default, add_curvature() is run on first-order files for compatibility. 
+        Ran with compatibility_mode=True in this case.
         
-        No arguments.
+        Optional parameters:
+            compatibility_mode : bool
+                                 defaults False
         '''
 
         if(hasattr(self,'r_curv')):
             raise AttributeError('Curvatures already defined.')
         self.r_curv = np.zeros_like(self.r)
         self.z_curv = np.zeros_like(self.z)
-        self.so = True
+        if(compatibility_mode == False):
+            self.so = True
          
     def autoformat_multi(self,template,contents):
         try: 
