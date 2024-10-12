@@ -724,22 +724,22 @@ class OpticalElement:
             # make coarse mesh-sized segments from fine mesh
             # skip last point as second point in segment doesn't exist
             for j,z_index in enumerate(self.z_indices[:-1]):
-                inv_curv = np.asscalar(inv_r_curv_interpolator(z_index,r_index))
+                inv_curv = np.ndarray.item(inv_r_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
                 if(self.z_curv[i,j] != 0):
                         #inv_z_curv_interpolator(z_index,r_index) != np.inf):
                     # deal with curvature of radial segment on which point_a lies
                     point_a = Point(self.coarse_segments[i,j,0].shape.interpolate(t,normalized=True))
                 else:
-                    point_a = Point(np.asscalar(z_interpolator(z_index,r_index)),
-                                    np.asscalar(r_interpolator(z_index,r_index)))
+                    point_a = Point(np.ndarray.item(z_interpolator(z_index,r_index)),
+                                    np.ndarray.item(r_interpolator(z_index,r_index)))
                 if(self.z_curv[i,j+1] != 0):
                         # inv_z_curv_interpolator(self.z_indices[j+1],r_index) != np.inf):
                     # deal with curvature of radial segment on which point_b lies
                     point_b = Point(self.coarse_segments[i,j+1,0].shape.interpolate(t,normalized=True))
                 else:
-                    point_b = Point(np.asscalar(z_interpolator(self.z_indices[j+1],r_index)),
-                                    np.asscalar(r_interpolator(self.z_indices[j+1],r_index)))
+                    point_b = Point(np.ndarray.item(z_interpolator(self.z_indices[j+1],r_index)),
+                                    np.ndarray.item(r_interpolator(self.z_indices[j+1],r_index)))
 
                 segments.append(MEBSSegment(point_a, point_b, curv))
         # now, radial fine mesh segments
@@ -751,20 +751,20 @@ class OpticalElement:
             z_dist = z_index-self.z_indices[j]
             t = z_dist/(self.z_indices[j+1]-self.z_indices[j]) if z_dist else 0
             for i,r_index in enumerate(self.r_indices[:-1]):
-                inv_curv = np.asscalar(inv_z_curv_interpolator(z_index,r_index))
+                inv_curv = np.ndarray.item(inv_z_curv_interpolator(z_index,r_index))
                 curv = 1.0/inv_curv if inv_curv != 0 else 0
                 if(self.r_curv[i,j] != 0):
                         # inv_r_curv_interpolator(z_index,r_index) != np.inf):
                     point_a = Point(self.coarse_segments[i,j,1].shape.interpolate(t,normalized=True))
                 else:
-                    point_a = Point(np.asscalar(z_interpolator(z_index,r_index)),
-                                    np.asscalar(r_interpolator(z_index,r_index)))
+                    point_a = Point(np.ndarray.item(z_interpolator(z_index,r_index)),
+                                    np.ndarray.item(r_interpolator(z_index,r_index)))
                 if(self.r_curv[i+1,j] != 0):
                         # inv_r_curv_interpolator(z_index,self.r_indices[i+1]) != np.inf):
                     point_b = Point(self.coarse_segments[i+1,j,1].shape.interpolate(t,normalized=True))
                 else:
-                    point_b = Point(np.asscalar(z_interpolator(z_index,self.r_indices[i+1])),
-                                    np.asscalar(r_interpolator(z_index,self.r_indices[i+1])))
+                    point_b = Point(np.ndarray.item(z_interpolator(z_index,self.r_indices[i+1])),
+                                    np.ndarray.item(r_interpolator(z_index,self.r_indices[i+1])))
 
                 segments.append(MEBSSegment(point_a, point_b, curv))
         self.fine_segments = segments
